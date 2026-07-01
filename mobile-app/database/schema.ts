@@ -1,6 +1,6 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 export const schema = appSchema({
   version: SCHEMA_VERSION,
@@ -216,6 +216,7 @@ export const schema = appSchema({
         { name: 'mood', type: 'string', isIndexed: true }, // 'TERRIBLE', 'BAD', 'MEH', 'GOOD', 'GREAT'
         { name: 'mood_value', type: 'number' }, // 1-5 for analytics
         { name: 'level', type: 'number' }, // 1-5 for analytics (duplicate for compat)
+        { name: 'score10', type: 'number', isOptional: true }, // raw 1-10 score (no longer stuffed in note)
         { name: 'note', type: 'string', isOptional: true },
         { name: 'user_id', type: 'string', isIndexed: true },
         { name: 'created_at', type: 'number', isIndexed: true },
