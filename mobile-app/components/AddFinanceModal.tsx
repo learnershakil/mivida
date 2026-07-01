@@ -223,7 +223,7 @@ export function AddFinanceModal({ visible, onClose, userId }: AddFinanceModalPro
                                         onPress={() => setShowDatePicker(true)}
                                         style={styles.datePickerButton}
                                     >
-                                        <Calendar size={20} color="#A855F7" />
+                                        <Calendar size={20} color="#6B7280" />
                                         <Text style={styles.datePickerButtonText}>
                                             {scheduledDate
                                                 ? scheduledDate.toLocaleDateString('en-US', {
@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#22C55E',
     },
     scheduledActive: {
-        backgroundColor: '#A855F7',
+        backgroundColor: '#1E1E1E',
     },
     toggleText: {
         fontWeight: 'bold',
@@ -470,9 +470,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        backgroundColor: '#F3E8FF',
+        backgroundColor: '#F9FAFB',
         borderWidth: 2,
-        borderColor: '#A855F7',
+        borderColor: '#E5E7EB',
         borderRadius: 16,
         padding: 16,
         marginBottom: 12,
@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
     datePickerButtonText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#7C3AED',
+        color: '#111827',
     },
     datePickerModal: {
         flex: 1,
@@ -509,15 +509,15 @@ const styles = StyleSheet.create({
     datePickerDone: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#A855F7',
+        color: '#065F46',
     },
     selectedDateContainer: {
-        backgroundColor: '#F3E8FF',
+        backgroundColor: '#ECFDF5',
         padding: 12,
         borderRadius: 12,
     },
     selectedDateText: {
-        color: '#7C3AED',
+        color: '#065F46',
         fontWeight: '500',
         textAlign: 'center',
     },
