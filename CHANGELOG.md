@@ -36,10 +36,21 @@ All notable changes on branch `feat/backend-foundation` (Phases 1–3). Dates ar
   exact alarms, POST_NOTIFICATIONS); fixed a stale break-lock comment.
 - **3.8 Web (core)** — web login page + dashboard session gate (unauthenticated → `/login`).
 
-### Verification
-- Mobile: `tsc --noEmit` clean; `jest` 43/43.
-- Web: `tsc --noEmit` clean; `next build` clean; `vitest` 9/9; live smoke tests for auth, sync
-  (idempotency + LWW + vault-no-plaintext), and the login gate.
+## Post-slice hardening (workstreams beyond the 8 slices)
+- **Backend cron (#1)** — `lib/lifecycle.ts` (server mirror of the task rules) + `lib/cron.ts`: fixed 5AM
+  renewal (skips Holiday), custom 6h→failed sweep, scheduled-finance trigger, 7-day `TaskInstance`
+  allocation, and the **fatigue trigger** (screen-time × steps → auto activity task). `/api/cron` guarded by
+  `CRON_SECRET`; `vercel.json` runs it every 15 min.
+- **R2 client (#6)** — `services/apiConfig.ts` + `services/uploadService.ts`: presigned PUT/GET upload &
+  download (secrets stay server-side). Server presign already existed.
+- **Google Calendar (#6)** — `lib/google.ts`: OAuth (exchange/refresh) with AES-256-GCM token encryption
+  at rest + `events.insert/patch/delete`; `/api/w/google/oauth/{start,callback}`.
+- **Cleanup (#8)** — deleted dead `socket.ts`/`background.ts`; removed the orphaned settings stack screen.
+
+### Verification (final)
+- Mobile: `tsc --noEmit` **0 errors**; `jest` **43/43**.
+- Web: `tsc --noEmit` **0 errors**; `next build` clean; `vitest` **22/22**; live smoke tests for auth, sync
+  (idempotency + LWW + vault-no-plaintext), the login gate, and the cron runner.
 
 ### Known deferred (need a device build, external creds, or larger UI)
 Native lockdown hardening (overlay/foreground-service/boot/exact-alarm Kotlin); sensors + usage-stats data
