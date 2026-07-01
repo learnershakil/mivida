@@ -34,12 +34,27 @@ export default function VaultAccessModal({ visible, onClose, onSuccess, userId }
     const [confirmCode, setConfirmCode] = useState('');
     const [isVaultSetup, setIsVaultSetup] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
+    // Brute-force protection: lock out after repeated failures with exponential backoff.
+    const [failedAttempts, setFailedAttempts] = useState(0);
+    const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+    const [now, setNow] = useState(Date.now());
+
+    const MAX_ATTEMPTS = 5;
+    const isLocked = lockedUntil !== null && now < lockedUntil;
+    const lockRemainingSec = isLocked ? Math.ceil((lockedUntil! - now) / 1000) : 0;
 
     useEffect(() => {
         if (visible) {
             checkVaultSetup();
         }
     }, [userId, visible]);
+
+    // Tick once a second while locked so the countdown updates and the button re-enables.
+    useEffect(() => {
+        if (!isLocked) return;
+        const t = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(t);
+    }, [isLocked]);
 
     useEffect(() => {
         if (!visible) {
@@ -90,6 +105,10 @@ export default function VaultAccessModal({ visible, onClose, onSuccess, userId }
     };
 
     const verifyCode = async () => {
+        if (isLocked) {
+            Alert.alert('Vault Locked', `Too many attempts. Try again in ${lockRemainingSec}s.`);
+            return;
+        }
         if (code.length < 4) {
             Alert.alert('Error', 'Please enter your passcode');
             return;
@@ -100,53 +119,33 @@ export default function VaultAccessModal({ visible, onClose, onSuccess, userId }
 
             if (isValid) {
                 setCode('');
+                setFailedAttempts(0);
+                setLockedUntil(null);
                 onSuccess();
             } else {
                 Vibration.vibrate([100, 100, 100]);
-                Alert.alert(
-                    'Access Denied',
-                    'Incorrect passcode.',
-                    [
-                        { text: 'Try Again', style: 'cancel' },
-                        {
-                            text: 'Reset Vault',
-                            style: 'destructive',
-                            onPress: handleResetVault
-                        },
-                    ]
-                );
+                const attempts = failedAttempts + 1;
+                setFailedAttempts(attempts);
                 setCode('');
+                if (attempts >= MAX_ATTEMPTS) {
+                    // Exponential backoff: 30s, 60s, 120s … capped at 15 min.
+                    const over = attempts - MAX_ATTEMPTS;
+                    const dur = Math.min(30_000 * Math.pow(2, over), 15 * 60_000);
+                    setLockedUntil(Date.now() + dur);
+                    setNow(Date.now());
+                    Alert.alert('Too Many Attempts', `Vault locked for ${Math.round(dur / 1000)}s.`);
+                } else {
+                    Alert.alert(
+                        'Access Denied',
+                        `Incorrect passcode. ${MAX_ATTEMPTS - attempts} attempt(s) left before lockout.\n\nForgot your passcode? Reset it from the web dashboard.`,
+                    );
+                }
             }
         } catch (error) {
             console.error('Verify error:', error);
             Alert.alert('Error', 'Failed to verify passcode');
             setCode('');
         }
-    };
-
-    const handleResetVault = () => {
-        Alert.alert(
-            'Reset Vault?',
-            'This will delete your vault passcode and all vault media. You will need to set up a new passcode.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Reset',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await vaultService.reset(userId, true);
-                            setIsVaultSetup(false);
-                            setIsSetupMode(true);
-                            Alert.alert('Vault Reset', 'Please set up a new passcode.');
-                        } catch (error) {
-                            console.error('Reset error:', error);
-                            Alert.alert('Error', 'Failed to reset vault');
-                        }
-                    },
-                },
-            ]
-        );
     };
 
     const handleSubmit = () => {
@@ -216,8 +215,14 @@ export default function VaultAccessModal({ visible, onClose, onSuccess, userId }
                         <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
                             <Text style={styles.cancelButtonText}>Cancel</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-                            <Text style={styles.submitButtonText}>{isSetupMode ? 'Create' : 'Unlock'}</Text>
+                        <TouchableOpacity
+                            style={[styles.submitButton, !isSetupMode && isLocked && { opacity: 0.5 }]}
+                            onPress={handleSubmit}
+                            disabled={!isSetupMode && isLocked}
+                        >
+                            <Text style={styles.submitButtonText}>
+                                {isSetupMode ? 'Create' : isLocked ? `Locked (${lockRemainingSec}s)` : 'Unlock'}
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
