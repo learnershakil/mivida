@@ -1,9 +1,15 @@
 import { prisma } from "@/lib/prisma";
+import { getWebSessionUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-// Live data + will be auth-gated; never prerender at build time (would hit the DB).
+// Live data + auth-gated; never prerender at build time (would hit the DB).
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  // Gate the control panel behind the web session (ARCHITECTURE §1).
+  const session = await getWebSessionUser();
+  if (!session) redirect("/login");
+
   const users = await prisma.user.findMany({
     include: {
       profile: true,

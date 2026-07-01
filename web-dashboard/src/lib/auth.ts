@@ -2,6 +2,7 @@
 // Dependency-free (node:crypto). See ARCHITECTURE.md §1.
 import { createHmac, timingSafeEqual, scryptSync, randomBytes } from 'node:crypto'
 import type { NextRequest } from 'next/server'
+import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { env } from '@/lib/env'
 
@@ -110,4 +111,12 @@ export async function requireWebUser(req: NextRequest) {
   const user = await prisma.user.findUnique({ where: { id: payload.userId } })
   if (!user) throw new AuthError(401, 'Session user not found')
   return user
+}
+
+/** Server-component friendly: resolve the web session user from next/headers cookies, or null. */
+export async function getWebSessionUser() {
+  const jar = await cookies()
+  const payload = verifySessionToken(jar.get(SESSION_COOKIE)?.value)
+  if (!payload) return null
+  return prisma.user.findUnique({ where: { id: payload.userId } })
 }
