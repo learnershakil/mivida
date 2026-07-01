@@ -4,7 +4,7 @@
  * Modal for starting a Break session.
  * When break time is over:
  * 1. Plays notification sound for 5 seconds
- * 2. Locks the device for 5 minutes (Focus Lock)
+ * 2. Starts a forced 10-minute Focus Lock (POST_BREAK_LOCK_MINUTES)
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
