@@ -55,6 +55,28 @@ All notable changes on branch `feat/backend-foundation` (Phases 1–3). Dates ar
 - **DB backup (#6)** — `services/dbBackup.ts`: per-day event-log JSONL snapshot on launch (Guardrail 2).
 - **Secrets** — gitignore `mobile-app/.env`.
 
+## On-device session (physical device 7aa50014, package me.learnershakil.mivida)
+Credentials wired + verified end-to-end on real hardware:
+- **DB**: verified TLS via the Aiven CA (fixed a mis-parsed `.env` CA guard in `prisma.ts`).
+- **R2**: PUT → presigned GET (bytes match) → DELETE, all green.
+- **Google Calendar**: OAuth client creds valid (token endpoint returns `invalid_grant`, not
+  `invalid_client`); full event sync ready — only the one-time browser consent remains manual.
+- **FCM**: `expo-notifications` device token → `POST /api/m/register-push` (`PushToken` row) → server
+  `firebase-admin` sent a real push accepted by Firebase (messageId returned). `lib/fcm.ts` + `/api/w/push-test`.
+- **Sensors**: `expo-sensors` pedometer available on-device; daily steps → `sensor_stats` (v17) → sync → fatigue cron.
+- **Build/run**: aligned `applicationId`→`me.learnershakil.mivida` + `google-services.json` + Firebase gradle
+  plugin; `gradlew assembleDebug` + `adb install` (gradle `installDebug` hits MIUI `INSTALL_FAILED_USER_RESTRICTED`);
+  app boots cleanly on device.
+- **Extreme lockdown (native Kotlin)**: `LockdownOverlayService` (foreground service, specialUse) draws a
+  full-screen `TYPE_APPLICATION_OVERLAY` + `LockdownOverlayModule` bridge; wired into `lockdown.ts`. VERIFIED via
+  `dumpsys`: service `isForeground=true` + full-screen `APPLICATION_OVERLAY` window (overlay perm granted via adb).
+- **§7**: finance date picker recolored off purple → mi vida palette.
+
+Known limitations (documented): **SQLCipher DB-at-rest encryption is not feasible** with the current
+WatermelonDB `SQLiteAdapter` (no `encryptionKey` without forking the native adapter) — vault note content is
+already AES-encrypted. Boot-receiver + exact-alarm auto-start of scheduled focus, and the remaining 4 cosmetic
+restyles, are follow-ons best iterated with live visual feedback (adb can't inject touch on MIUI to auto-navigate).
+
 ### Verification (final)
 - Mobile: `tsc --noEmit` **0 errors**; `jest` **43/43**.
 - Web: `tsc --noEmit` **0 errors**; `next build` clean; `vitest` **22/22**; live smoke tests for auth, sync
