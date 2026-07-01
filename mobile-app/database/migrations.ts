@@ -188,5 +188,20 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    // Migration from v13 to v14: Task lifecycle correctness (completed_at, failed_at, status, is_time_only)
+    {
+      toVersion: 14,
+      steps: [
+        addColumns({
+          table: 'tasks',
+          columns: [
+            { name: 'completed_at', type: 'number', isOptional: true },
+            { name: 'failed_at', type: 'number', isOptional: true },
+            { name: 'status', type: 'string', isOptional: true },
+            { name: 'is_time_only', type: 'boolean', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

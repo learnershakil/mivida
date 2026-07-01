@@ -1,6 +1,6 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 export const schema = appSchema({
   version: SCHEMA_VERSION,
@@ -128,6 +128,10 @@ export const schema = appSchema({
         { name: 'start_time', type: 'number', isOptional: true }, // Scheduled start datetime
         { name: 'end_time', type: 'number', isOptional: true }, // Scheduled end datetime
         { name: 'completion_remark', type: 'string', isOptional: true },
+        { name: 'completed_at', type: 'number', isOptional: true }, // When the task was completed (16h "Completed Today" window)
+        { name: 'failed_at', type: 'number', isOptional: true }, // When a custom task was auto-failed (6h past end)
+        { name: 'status', type: 'string', isOptional: true }, // pending|active|paused|completed|failed|incomplete|cancelled
+        { name: 'is_time_only', type: 'boolean', isOptional: true }, // Fixed tasks are scheduled by time-of-day only
         { name: 'is_active', type: 'boolean', isIndexed: true }, // Currently running timer
         { name: 'is_completed', type: 'boolean', isIndexed: true },
         { name: 'completion_percent', type: 'number' },

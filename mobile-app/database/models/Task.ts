@@ -40,7 +40,19 @@ export default class Task extends Model {
   @date('end_date') endDate?: number;
   @date('start_time') startTime?: number;
   @date('end_time') endTime?: number;
+  @field('is_time_only') isTimeOnly?: boolean; // Fixed tasks are scheduled by time-of-day only
   @field('completion_remark') completionRemark?: string;
+  @date('completed_at') completedAt?: number; // When completed (drives the 16h "Completed Today" window)
+  @date('failed_at') failedAt?: number; // When a custom task was auto-failed (6h past end)
+  // Precise terminal state — pending|active|paused|completed|failed|incomplete|cancelled
+  @field('status') status?:
+    | 'pending'
+    | 'active'
+    | 'paused'
+    | 'completed'
+    | 'failed'
+    | 'incomplete'
+    | 'cancelled';
 
   // Current execution state
   @field('is_active') isActive!: boolean; // Timer currently running

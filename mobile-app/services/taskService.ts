@@ -80,6 +80,8 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
       record.isCompleted = false;
       record.completionPercent = 0;
       record.totalElapsedSeconds = 0;
+      record.status = 'pending';
+      record.isTimeOnly = type === 'fixed'; // fixed tasks are scheduled by time-of-day only
       record.scheduledDate = scheduledDate?.getTime();
       record.scheduledTime = scheduledTime?.getTime();
       // Alert-specific fields
@@ -297,6 +299,9 @@ export async function updateTaskProgress(
         record.isCompleted = true;
         record.isActive = false;
         record.timerStartedAt = undefined;
+        record.completedAt = Date.now();
+        record.status = 'completed';
+        if (remark) record.completionRemark = remark; // persist the completion remark (AUDIT §4)
       }
     });
   });
@@ -352,6 +357,7 @@ export async function cancelTask(task: Task, userId: string, reason?: string): P
       record.cancelledAt = now;
       record.cancelReason = reason || 'No reason provided';
       record.isActive = false;
+      record.status = 'cancelled';
     });
   });
 
@@ -420,6 +426,8 @@ export async function completeTask(task: Task, userId: string): Promise<void> {
       record.isCompleted = true;
       record.isActive = false;
       record.completionPercent = 100;
+      record.completedAt = Date.now();
+      record.status = 'completed';
     });
   });
 
@@ -503,6 +511,8 @@ export async function updateDelegatedTaskStatus(
       if (status === 'completed') {
         record.isCompleted = true;
         record.completionPercent = 100;
+        record.completedAt = Date.now();
+        record.status = 'completed';
       }
     });
   });
@@ -680,10 +690,10 @@ export async function updateTask(
   });
 
   await emitEvent({
-    eventType: 'TASK_UPDATED',
+    eventType: EventTypes.TASK_UPDATED,
     entityType: 'task',
     entityId: task.id,
-    payload: params,
+    payload: params as Record<string, unknown>,
     userId,
   });
 
@@ -725,6 +735,8 @@ export async function triggerAlertTask(task: Task, userId: string): Promise<void
         record.isAlertActive = false;
         record.isCompleted = true;
         record.completionPercent = 100;
+        record.completedAt = Date.now();
+        record.status = 'completed';
       }
     });
   });
