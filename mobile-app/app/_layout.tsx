@@ -177,7 +177,7 @@ export default function Layout() {
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
+          {/* Settings is a modal component (SettingsModal), not a route — no orphaned screen. */}
         </Stack>
       </CustomAlertProvider>
     </DatabaseProvider>
