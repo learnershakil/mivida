@@ -9,8 +9,7 @@ import DeadManPrompt from '../components/DeadManPrompt'
 import { GlobalToast } from '../components/Toast'
 import { initializeUser } from '../services/userService'
 import { notificationService } from '../services/notifications'
-import { AppState, Platform, Alert } from 'react-native';
-import { handleAppStateChange } from '../services/appStateService';
+import { Alert } from 'react-native';
 import { CustomAlertProvider } from '../components/CustomAlertProvider';
 import { uiAlertService } from '../services/uiAlertService';
 

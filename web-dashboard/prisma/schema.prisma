@@ -1,3 +1,14 @@
+// mi vida — Prisma schema (Phase 3). See ARCHITECTURE.md §2 for the design + the 1:1 WatermelonDB mapping.
+//
+// Prisma 7: the connection `url` is NOT declared here — it lives in prisma.config.ts (loaded via
+// `import "dotenv/config"`), and the client is constructed with @prisma/adapter-pg in src/lib/prisma.ts.
+//
+// Sync conventions for every device-synced model:
+//   id String @id            → the WatermelonDB record id (upsert-by-id = idempotent push)
+//   updatedAt BigInt         → device-reported updated_at (epoch millis); the LWW comparator
+//   serverUpdatedAt DateTime → server clock; indexed; drives pull deltas (serverUpdatedAt > lastPulledAt)
+//   deletedAt BigInt?        → soft delete (millis) where the device table has it
+
 datasource db {
   provider = "postgresql"
 }
@@ -6,93 +17,467 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ─────────────────────────── IDENTITY ───────────────────────────
 model User {
-  id                 String   @id @default(uuid())
-  xHttpKey           String   @unique // Hardcoded auth key for mobile requests
-  name               String?
-  avatarUrl          String?
-  passcodeHash       String?  // Vault passcode
-  
-  // WakaTime Credentials
-  wakatimeUsername   String?
-  wakatimePassword   String?  // Symmetrically encrypted in DB
-  
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  
-  settings           Setting?
-  contacts           Contact[]
-  tasks              Task[]
-  codingLogs         CodingLog[]
-  // Additional one-to-many relations for other models could be added here
+  id           String  @id @default(uuid())
+  email        String? @unique // web login
+  passwordHash String? // argon2/scrypt (web)
+  xHttpKey     String  @unique // mobile auth (constant-time compared)
+
+  // WakaTime: prefer the API key. username/password kept (optional) only for the scrape fallback.
+  wakatimeApiKey   String?
+  wakatimeUsername String?
+  wakatimePassword String? // deprecated: never store a real secret here unencrypted
+
+  // Legacy columns retained (optional) to keep the server migration additive — data now lives in Profile.
+  name         String?
+  avatarUrl    String?
+  passcodeHash String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile         Profile?
+  setting         Setting?
+  syncState       SyncState?
+  googleAuth      GoogleAuth?
+  tasks           Task[]
+  taskInstances   TaskInstance[]
+  categories      Category[]
+  contacts        Contact[]
+  events          EventLog[]
+  financeLogs     FinanceLog[]
+  moodLogs        MoodLog[]
+  musicTracks     MusicTrack[]
+  musicCategories MusicCategory[]
+  vaultItems      VaultItem[]
+  focusSessions   FocusSession[]
+  schedules       Schedule[]
+  notifications   NotificationLog[]
+  codingLogs      CodingLog[]
+  usageStats      UsageStat[]
+  sensorStats     SensorStat[]
+  insights        Insight[]
+  wakatimeCaches  WakatimeCache[]
 }
 
+// mirrors device `users` (projection, NOT auth)
+model Profile {
+  id              String   @id // device user id (e.g. "local_user")
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  name            String?
+  avatarR2Key     String? // R2 key; replaces local avatarUrl
+  passcode        String? // legacy device field; unused
+  isAwake         Boolean  @default(false)
+  lastInteraction BigInt?
+  updatedAt       BigInt
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([serverUpdatedAt])
+}
+
+// mirrors device `settings` (one row/user) + adds insights JSON
 model Setting {
-  id                                String   @id @default(uuid())
-  userId                            String   @unique
-  user                              User     @relation(fields: [userId], references: [id])
-  
-  lastSyncTimestamp                 BigInt?
-  focusLockdownMode                 String   @default("Normal")
-  focusAllowIncomingCalls           Boolean  @default(true)
-  dayMode                           String   @default("Weekday")
-  fatigueScreenTimeThresholdHours   Int?
-  fatigueStepsThreshold             Int?
-  
-  updatedAt                         DateTime @updatedAt
+  id     String @id
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  deadManThresholdMinutes    Int     @default(180)
+  deadManEnabled             Boolean @default(true)
+  notificationIntensity      String  @default("normal")
+  notificationSound          String  @default("default")
+  customNotificationSoundUri  String?
+  customNotificationSoundName String?
+  notificationSoundEnabled   Boolean @default(true)
+  notificationVibrationEnabled Boolean @default(true)
+  lockdownStrictness         String  @default("normal") // normal|strict|extreme
+  lockdownAllowCalls         Boolean @default(true)
+  taskMode                   String  @default("weekday") // canonical day-mode (weekday|holiday)
+  autoLoadFixedTasks         Boolean @default(true)
+  exportFormat               String  @default("jsonl")
+  includeDeviceInfo          Boolean @default(true)
+  timezone                   String  @default("UTC")
+  vaultPasscodeHash          String?
+  vaultAutoLockMinutes       Int     @default(5)
+  moodTrackerEnabled         Boolean @default(false)
+  moodTrackerIntervalMinutes Int     @default(45)
+  insights                   Json? // { [metric]: { enabled, thresholds… } } — Insights group
+  lastSyncTimestamp          BigInt?
+  updatedAt                  BigInt
+  serverUpdatedAt            DateTime @updatedAt @db.Timestamptz
+
+  @@index([serverUpdatedAt])
+}
+
+// ─────────────────────────── TASKS ───────────────────────────
+model Task {
+  id                      String    @id
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id])
+  title                   String
+  description             String?
+  categoryId              String? // FK to master Category
+  category                Category? @relation(fields: [categoryId], references: [id])
+  categoryName            String? // denormalized (device sends free text today)
+  expectedDurationMinutes Int?
+  type                    String // custom|fixed|alert
+  priority                String    @default("normal")
+  assignedPersons         Json? // legacy free-text names
+  contactId               String?
+  contact                 Contact?  @relation(fields: [contactId], references: [id])
+  startDate               BigInt?
+  endDate                 BigInt?
+  startTime               BigInt?
+  endTime                 BigInt?
+  isTimeOnly              Boolean   @default(false) // fixed tasks are time-only
+  status                  String    @default("pending") // pending|active|paused|completed|failed|incomplete|cancelled
+  isActive                Boolean   @default(false)
+  isCompleted             Boolean   @default(false)
+  completionPercent       Int       @default(0)
+  timerStartedAt          BigInt?
+  totalElapsedSeconds     Int       @default(0)
+  completionRemark        String? // now persisted (was write-only-to-events)
+  completedAt             BigInt? // fixes the 16h-hide bug
+  failedAt                BigInt? // distinct failed state
+  scheduledDate           BigInt?
+  scheduledTime           BigInt?
+  alertType               String?
+  alertIntervalMinutes    Int?
+  isAlertActive           Boolean?  @default(false)
+  lastAlertTriggeredAt    BigInt?
+  isDelegated             Boolean   @default(false)
+  delegatedTo             String?
+  delegatedStatus         String?
+  isCancelled             Boolean?  @default(false)
+  cancelledAt             BigInt?
+  cancelReason            String?
+  googleEventId           String? // Google Calendar event id (dedupe on edit)
+  createdAt               BigInt
+  updatedAt               BigInt
+  deletedAt               BigInt?
+  serverUpdatedAt         DateTime  @updatedAt @db.Timestamptz
+
+  instances TaskInstance[]
+
+  @@index([userId, type])
+  @@index([serverUpdatedAt])
+}
+
+// per-day instance for fixed tasks (7-day allocation + renewal history)
+model TaskInstance {
+  id              String   @id
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  taskId          String
+  task            Task     @relation(fields: [taskId], references: [id])
+  date            BigInt // day bucket (midnight millis)
+  status          String   @default("pending") // pending|completed|failed|incomplete
+  completedAt     BigInt?
+  remark          String?
+  googleEventId   String?
+  updatedAt       BigInt
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([taskId, date])
+  @@index([serverUpdatedAt])
+}
+
+// master category list (web-authored + mobile-created)
+model Category {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  name            String
+  color           String?
+  source          String   @default("web") // web|mobile
+  createdAt       BigInt
+  updatedAt       BigInt
+  deletedAt       BigInt?
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+  tasks           Task[]
+
+  @@unique([userId, name])
+  @@index([serverUpdatedAt])
 }
 
 model Contact {
-  id        String    @id @default(uuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id])
-  name      String
-  email     String?
-  phone     String?
-  socials   Json?
-  
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-  
-  tasks     Task[]
+  id              String   @id
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  name            String
+  email           String?
+  phone           String?
+  socials         Json?
+  createdAt       BigInt
+  updatedAt       BigInt
+  deletedAt       BigInt?
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+  tasks           Task[]
+
+  @@index([serverUpdatedAt])
 }
 
-model Task {
-  id                String    @id @default(uuid())
-  userId            String
-  user              User      @relation(fields: [userId], references: [id])
-  title             String
-  description       String?
-  category          String?
-  type              String    // 'fixed' or 'custom'
-  
-  startDate         BigInt?  
-  endDate           BigInt?
-  startTime         BigInt?
-  endTime           BigInt?
-  
-  isCompleted       Boolean   @default(false)
-  completionRemark  String?
-  
-  contactId         String?
-  contact           Contact?  @relation(fields: [contactId], references: [id])
-  
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  deletedAt         DateTime?
+// ─────────────────────────── EVENT LOG (idempotency spine) ───────────────────────────
+model EventLog {
+  id              String   @id // WatermelonDB id == client event id (append-only, skipDuplicates)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  eventType       String
+  entityType      String?
+  entityId        String?
+  payload         Json
+  deviceId        String?
+  sessionId       String?
+  timezone        String
+  schemaVersion   Int
+  createdAt       BigInt
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([userId, eventType])
+  @@index([serverUpdatedAt])
 }
 
+// ─────────────────────────── FINANCE (append-only ledger) ───────────────────────────
+model FinanceLog {
+  id              String   @id
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  amount          Float
+  type            String // credit|debit (INCOME|EXPENSE)
+  category        String?
+  source          String?
+  destination     String?
+  description     String?
+  transactionDate BigInt
+  isScheduled     Boolean  @default(false)
+  scheduledFor    BigInt?
+  isTriggered     Boolean  @default(true)
+  isCancelled     Boolean  @default(false)
+  createdAt       BigInt
+  updatedAt       BigInt
+  deletedAt       BigInt?
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([serverUpdatedAt])
+}
+
+model MoodLog {
+  id              String   @id
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  mood            String
+  moodValue       Int // 1..5
+  level           Int
+  score10         Int? // raw 1..10 (stop stuffing in the note)
+  note            String?
+  createdAt       BigInt
+  updatedAt       BigInt
+  deletedAt       BigInt?
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([serverUpdatedAt])
+}
+
+// ─────────────────────────── MUSIC ───────────────────────────
+model MusicTrack {
+  id              String   @id
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  title           String
+  artist          String
+  album           String?
+  r2Key           String? // cloud copy
+  localPathHint   String? // was file_uri
+  fileName        String
+  albumArtR2Key   String?
+  duration        Int
+  category        String
+  isFavorite      Boolean  @default(false)
+  playCount       Int      @default(0)
+  createdAt       BigInt
+  updatedAt       BigInt
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([serverUpdatedAt])
+}
+
+model MusicCategory {
+  id              String   @id
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  name            String
+  icon            String?
+  color           String?
+  defaultArtUri   String?
+  position        Int      @default(0)
+  isSystem        Boolean  @default(false)
+  createdAt       BigInt
+  updatedAt       BigInt
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([serverUpdatedAt])
+}
+
+// ─────────────────────────── VAULT (ciphertext only, metadata-safe) ───────────────────────────
+model VaultItem {
+  id              String   @id
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  kind            String // note|image|video|audio
+  r2Key           String? // encrypted blob in R2
+  ciphertextRef   String? // encrypted note body (AES)
+  encTitle        String? // encrypted title
+  encMeta         Json? // IV, algo, encrypted filename, etc.
+  duration        Int?
+  createdAt       BigInt
+  updatedAt       BigInt
+  deletedAt       BigInt?
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([serverUpdatedAt])
+  // NO plaintext columns. Ever.
+}
+
+// ─────────────────────────── FOCUS / SCHEDULING ───────────────────────────
+model FocusSession {
+  id              String   @id
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  kind            String // focus|break
+  forcedPostBreak Boolean  @default(false)
+  strictness      String   @default("normal")
+  scheduledFor    BigInt?
+  startedAt       BigInt?
+  endedAt         BigInt?
+  breakAttempts   Int      @default(0)
+  panicExit       Boolean  @default(false) // panic-exit audit
+  createdAt       BigInt
+  updatedAt       BigInt
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([serverUpdatedAt])
+}
+
+model Schedule {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  kind            String // focus|mood|...
+  rule            String // rrule string or "HH:mm"
+  enabled         Boolean  @default(true)
+  createdAt       BigInt
+  updatedAt       BigInt
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([serverUpdatedAt])
+}
+
+model NotificationLog {
+  id              String   @id
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  type            String
+  title           String
+  body            String?
+  imagePath       String?
+  inputPrompt     String?
+  inputOptions    String?
+  userResponse    String?
+  status          String
+  scheduledFor    BigInt?
+  triggeredAt     BigInt?
+  viewedAt        BigInt?
+  respondedAt     BigInt?
+  dismissedAt     BigInt?
+  createdAt       BigInt
+  updatedAt       BigInt
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([serverUpdatedAt])
+}
+
+// ─────────────────────────── ANALYTICS SOURCES / CACHE ───────────────────────────
 model CodingLog {
-  id        String    @id @default(uuid())
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  date            BigInt
+  duration        Int
+  project         String?
+  language        String?
+  createdAt       BigInt
+  updatedAt       BigInt
+  deletedAt       BigInt?
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([userId, date, project, language]) // fixes duplicate inserts (AUDIT §7)
+  @@index([serverUpdatedAt])
+}
+
+model UsageStat {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  date            BigInt
+  totalScreenMs   BigInt
+  perApp          Json?
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([userId, date])
+}
+
+model SensorStat {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  date            BigInt
+  steps           Int
+  meta            Json?
+  serverUpdatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([userId, date])
+}
+
+model Insight {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  type       String
+  computedAt DateTime @default(now())
+  payload    Json
+
+  @@index([userId, type])
+}
+
+// ─────────────────────────── SERVER-ONLY (never synced to device) ───────────────────────────
+model SyncState {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id])
+  deviceLastSyncAt    BigInt?
+  serverLastAppliedAt DateTime @default(now())
+}
+
+model GoogleAuth {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  accessToken  String // encrypted at rest (TOKEN_ENC_KEY)
+  refreshToken String // encrypted at rest
+  expiryDate   BigInt
+  calendarId   String?
+  scope        String
+  updatedAt    DateTime @updatedAt
+}
+
+model WakatimeCache {
+  id        String   @id @default(uuid())
   userId    String
-  user      User      @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
   date      BigInt
-  duration  Int       // total seconds
-  project   String?
-  language  String?
-  
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  payload   Json
+  fetchedAt DateTime @default(now())
+
+  @@unique([userId, date])
 }
