@@ -28,6 +28,7 @@ export interface CreateTaskParams {
   type: 'fixed' | 'custom' | 'alert';
   priority?: 'normal' | 'important' | 'urgent';
   assignedPersons?: string[];
+  contactId?: string;
   startTime?: Date;
   endTime?: Date;
   scheduledDate?: Date;
@@ -56,6 +57,7 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
     type,
     priority = 'normal',
     assignedPersons = [],
+    contactId,
     startTime,
     endTime,
     scheduledDate,
@@ -73,6 +75,7 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
       record.expectedDurationMinutes = expectedDurationMinutes;
       record.type = type;
       record.priority = priority;
+      record.contactId = contactId;
       (record as any)._raw.assigned_persons = JSON.stringify(assignedPersons);
       record.startTime = startTime?.getTime();
       record.endTime = endTime?.getTime();
@@ -659,6 +662,7 @@ export interface UpdateTaskParams {
   expectedDurationMinutes?: number;
   priority?: 'normal' | 'important' | 'urgent';
   assignedPersons?: string[];
+  contactId?: string;
   startTime?: Date;
   endTime?: Date;
   alertType?: 'timeout' | 'interval';
@@ -681,6 +685,7 @@ export async function updateTask(
       if (params.assignedPersons !== undefined) {
         (record as any)._raw.assigned_persons = JSON.stringify(params.assignedPersons);
       }
+      if (params.contactId !== undefined) record.contactId = params.contactId;
       if (params.startTime !== undefined) record.startTime = params.startTime?.getTime();
       if (params.endTime !== undefined) record.endTime = params.endTime?.getTime();
       if (params.alertType !== undefined) record.alertType = params.alertType;

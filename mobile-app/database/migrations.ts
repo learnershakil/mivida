@@ -203,5 +203,23 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    // Migration from v14 to v15: Add categories master-list table
+    {
+      toVersion: 15,
+      steps: [
+        createTable({
+          name: 'categories',
+          columns: [
+            { name: 'name', type: 'string' },
+            { name: 'color', type: 'string', isOptional: true },
+            { name: 'source', type: 'string', isOptional: true },
+            { name: 'user_id', type: 'string', isIndexed: true },
+            { name: 'created_at', type: 'number' },
+            { name: 'updated_at', type: 'number' },
+            { name: 'deleted_at', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });
