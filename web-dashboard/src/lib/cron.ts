@@ -2,7 +2,7 @@
 // idempotently; the device reconciles on the next sync pull (serverUpdatedAt advances). Invoked by
 // /api/cron behind CRON_SECRET.
 import type { PrismaClient } from '@prisma/client'
-import { shouldAutoFail, shouldRenewFixed, next7Days } from '@/lib/lifecycle'
+import { shouldAutoFail, shouldRenewFixed, next7Days, fatigueTriggered, dayBucket } from '@/lib/lifecycle'
 
 type DB = PrismaClient
 
@@ -12,6 +12,7 @@ export interface CronReport {
   failedCustom: number
   triggeredFinance: number
   allocatedInstances: number
+  fatigueTasks: number
 }
 
 /** Fixed-task 5AM renewal — reset completed daily routines. Skipped for users in Holiday day-mode. */
@@ -98,12 +99,59 @@ async function allocateFixedInstances(db: DB, now: number): Promise<number> {
   return n
 }
 
+/**
+ * Physical Fatigue vs Screen Time: when today's screen time is high AND steps are low, auto-create a
+ * mandatory physical-activity fixed task (once per user per day). Thresholds come from Setting.insights.
+ */
+async function fatigueTrigger(db: DB, now: number): Promise<number> {
+  const day = dayBucket(now)
+  const users = await db.user.findMany({ include: { setting: true } })
+  let n = 0
+  for (const u of users) {
+    const [sensor, usage] = await Promise.all([
+      db.sensorStat.findUnique({ where: { userId_date: { userId: u.id, date: BigInt(day) } } }),
+      db.usageStat.findUnique({ where: { userId_date: { userId: u.id, date: BigInt(day) } } }),
+    ])
+    if (!sensor && !usage) continue // no data collected yet
+
+    const steps = sensor?.steps ?? 0
+    const screenMs = usage ? Number(usage.totalScreenMs) : 0
+    const insights = (u.setting?.insights as { fatigue?: { screenTimeHours?: number; steps?: number } }) ?? {}
+    const thr = {
+      screenTimeHours: insights.fatigue?.screenTimeHours ?? 6,
+      steps: insights.fatigue?.steps ?? 1000,
+    }
+    if (!fatigueTriggered(screenMs, steps, thr)) continue
+
+    const created = await db.task.createMany({
+      data: [
+        {
+          id: `fatigue:${u.id}:${day}`, // deterministic → idempotent per day
+          userId: u.id,
+          title: 'Physical activity break',
+          description: 'Auto-created: high screen time and low steps today. Move for a bit.',
+          type: 'fixed',
+          priority: 'important',
+          status: 'pending',
+          isTimeOnly: true,
+          createdAt: BigInt(now),
+          updatedAt: BigInt(now),
+        },
+      ],
+      skipDuplicates: true,
+    })
+    n += created.count
+  }
+  return n
+}
+
 export async function runCron(db: DB, now: number): Promise<CronReport> {
-  const [renewedFixed, failedCustom, triggeredFinance, allocatedInstances] = [
+  const [renewedFixed, failedCustom, triggeredFinance, allocatedInstances, fatigueTasks] = [
     await renewFixed(db, now),
     await failExpiredCustom(db, now),
     await triggerScheduledFinance(db, now),
     await allocateFixedInstances(db, now),
+    await fatigueTrigger(db, now),
   ]
-  return { ranAt: now, renewedFixed, failedCustom, triggeredFinance, allocatedInstances }
+  return { ranAt: now, renewedFixed, failedCustom, triggeredFinance, allocatedInstances, fatigueTasks }
 }

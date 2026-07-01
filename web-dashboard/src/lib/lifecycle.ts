@@ -45,3 +45,12 @@ export function next7Days(now: number, count = 7): number[] {
   const start = dayBucket(now)
   return Array.from({ length: count }, (_, i) => start + i * DAY_MS)
 }
+
+/** Fatigue trigger: high screen time AND low steps → auto-create a physical-activity task. */
+export function fatigueTriggered(
+  screenTimeMs: number,
+  steps: number,
+  thr: { screenTimeHours: number; steps: number },
+): boolean {
+  return screenTimeMs / (60 * 60 * 1000) > thr.screenTimeHours && steps < thr.steps
+}

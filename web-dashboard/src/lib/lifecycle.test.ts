@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resetCycleStart, shouldAutoFail, shouldRenewFixed, next7Days, dayBucket, SIX_HOURS_MS } from './lifecycle'
+import { resetCycleStart, shouldAutoFail, shouldRenewFixed, next7Days, dayBucket, fatigueTriggered, SIX_HOURS_MS } from './lifecycle'
 
 const utc = (y: number, mo: number, d: number, h = 0) => Date.UTC(y, mo - 1, d, h, 0, 0, 0)
 
@@ -38,6 +38,17 @@ describe('shouldRenewFixed (server mirror)', () => {
   it('does not renew incomplete or non-fixed', () => {
     expect(shouldRenewFixed({ type: 'fixed', isCompleted: false, updatedAt: BigInt(0) }, now)).toBe(false)
     expect(shouldRenewFixed({ type: 'custom', isCompleted: true, updatedAt: BigInt(0) }, now)).toBe(false)
+  })
+})
+
+describe('fatigueTriggered', () => {
+  const thr = { screenTimeHours: 6, steps: 1000 }
+  it('triggers on high screen time + low steps', () => {
+    expect(fatigueTriggered(7 * 3600_000, 500, thr)).toBe(true)
+  })
+  it('does not trigger when steps sufficient or screen time low', () => {
+    expect(fatigueTriggered(7 * 3600_000, 2000, thr)).toBe(false)
+    expect(fatigueTriggered(3 * 3600_000, 100, thr)).toBe(false)
   })
 })
 
