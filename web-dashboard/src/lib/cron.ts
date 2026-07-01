@@ -4,6 +4,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { shouldAutoFail, shouldRenewFixed, next7Days, fatigueTriggered, dayBucket } from '@/lib/lifecycle'
 import { fetchAndStoreWakatime } from '@/lib/wakatime'
+import { reconcileGoogleCalendar } from '@/lib/calendarSync'
 
 type DB = PrismaClient
 
@@ -15,6 +16,8 @@ export interface CronReport {
   allocatedInstances: number
   fatigueTasks: number
   wakatimeSynced: number
+  calendarCreated: number
+  calendarDeleted: number
 }
 
 /** Fixed-task 5AM renewal — reset completed daily routines. Skipped for users in Holiday day-mode. */
@@ -162,15 +165,31 @@ async function syncWakatime(db: DB): Promise<number> {
   return n
 }
 
+/** Reconcile every connected user's tasks with Google Calendar (best-effort). */
+async function syncCalendar(db: DB): Promise<{ created: number; deleted: number }> {
+  const connected = await db.googleAuth.findMany({ select: { userId: true } })
+  let created = 0
+  let deleted = 0
+  for (const g of connected) {
+    try {
+      const r = await reconcileGoogleCalendar(db, g.userId)
+      created += r.created
+      deleted += r.deleted
+    } catch (err) {
+      console.warn('[cron] calendar reconcile failed for', g.userId, err)
+    }
+  }
+  return { created, deleted }
+}
+
 export async function runCron(db: DB, now: number): Promise<CronReport> {
-  const [renewedFixed, failedCustom, triggeredFinance, allocatedInstances, fatigueTasks, wakatimeSynced] = [
-    await renewFixed(db, now),
-    await failExpiredCustom(db, now),
-    await triggerScheduledFinance(db, now),
-    await allocateFixedInstances(db, now),
-    await fatigueTrigger(db, now),
-    await syncWakatime(db),
-  ]
+  const renewedFixed = await renewFixed(db, now)
+  const failedCustom = await failExpiredCustom(db, now)
+  const triggeredFinance = await triggerScheduledFinance(db, now)
+  const allocatedInstances = await allocateFixedInstances(db, now)
+  const fatigueTasks = await fatigueTrigger(db, now)
+  const wakatimeSynced = await syncWakatime(db)
+  const calendar = await syncCalendar(db)
   return {
     ranAt: now,
     renewedFixed,
@@ -179,5 +198,7 @@ export async function runCron(db: DB, now: number): Promise<CronReport> {
     allocatedInstances,
     fatigueTasks,
     wakatimeSynced,
+    calendarCreated: calendar.created,
+    calendarDeleted: calendar.deleted,
   }
 }
