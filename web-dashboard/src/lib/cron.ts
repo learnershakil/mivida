@@ -3,6 +3,7 @@
 // /api/cron behind CRON_SECRET.
 import type { PrismaClient } from '@prisma/client'
 import { shouldAutoFail, shouldRenewFixed, next7Days, fatigueTriggered, dayBucket } from '@/lib/lifecycle'
+import { fetchAndStoreWakatime } from '@/lib/wakatime'
 
 type DB = PrismaClient
 
@@ -13,6 +14,7 @@ export interface CronReport {
   triggeredFinance: number
   allocatedInstances: number
   fatigueTasks: number
+  wakatimeSynced: number
 }
 
 /** Fixed-task 5AM renewal — reset completed daily routines. Skipped for users in Holiday day-mode. */
@@ -145,13 +147,37 @@ async function fatigueTrigger(db: DB, now: number): Promise<number> {
   return n
 }
 
+/** Refresh WakaTime coding stats for every user (upsert dedups the day's row). Best-effort. */
+async function syncWakatime(db: DB): Promise<number> {
+  const users = await db.user.findMany({ select: { id: true } })
+  let n = 0
+  for (const u of users) {
+    try {
+      const stats = await fetchAndStoreWakatime(db, u.id)
+      if (stats) n++
+    } catch (err) {
+      console.warn('[cron] wakatime failed for', u.id, err)
+    }
+  }
+  return n
+}
+
 export async function runCron(db: DB, now: number): Promise<CronReport> {
-  const [renewedFixed, failedCustom, triggeredFinance, allocatedInstances, fatigueTasks] = [
+  const [renewedFixed, failedCustom, triggeredFinance, allocatedInstances, fatigueTasks, wakatimeSynced] = [
     await renewFixed(db, now),
     await failExpiredCustom(db, now),
     await triggerScheduledFinance(db, now),
     await allocateFixedInstances(db, now),
     await fatigueTrigger(db, now),
+    await syncWakatime(db),
   ]
-  return { ranAt: now, renewedFixed, failedCustom, triggeredFinance, allocatedInstances, fatigueTasks }
+  return {
+    ranAt: now,
+    renewedFixed,
+    failedCustom,
+    triggeredFinance,
+    allocatedInstances,
+    fatigueTasks,
+    wakatimeSynced,
+  }
 }
