@@ -65,6 +65,7 @@ export const SYNC_TABLES: SyncTableConfig[] = [
   { table: 'vault_media', model: 'vaultItem', modelName: 'VaultItem', softDelete: true, vault: true },
   { table: 'event_logs', model: 'eventLog', modelName: 'EventLog', append: true },
   { table: 'coding_logs', model: 'codingLog', modelName: 'CodingLog', softDelete: true },
+  { table: 'sensor_stats', model: 'sensorStat', modelName: 'SensorStat' },
 ]
 
 const byTable = new Map(SYNC_TABLES.map((c) => [c.table, c]))

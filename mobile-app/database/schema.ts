@@ -1,6 +1,6 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 export const schema = appSchema({
   version: SCHEMA_VERSION,
@@ -260,6 +260,20 @@ export const schema = appSchema({
         { name: 'play_count', type: 'number' },
         { name: 'user_id', type: 'string', isIndexed: true },
         { name: 'created_at', type: 'number', isIndexed: true },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    // ============================================
+    // SENSOR_STATS - Daily pedometer steps (feeds fatigue analytics)
+    // ============================================
+    tableSchema({
+      name: 'sensor_stats',
+      columns: [
+        { name: 'date', type: 'number', isIndexed: true },
+        { name: 'steps', type: 'number' },
+        { name: 'meta', type: 'string', isOptional: true },
+        { name: 'user_id', type: 'string', isIndexed: true },
+        { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
       ],
     }),
