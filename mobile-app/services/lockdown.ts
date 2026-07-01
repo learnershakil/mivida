@@ -14,6 +14,7 @@
 import { AppState, AppStateStatus, Linking } from 'react-native';
 import { emitEvent, EventTypes } from './eventLogger';
 import { LockTaskService } from './lockTaskService';
+import { lockdownOverlay } from './lockdownOverlay';
 import { database } from '../database';
 import Settings from '../database/models/Settings';
 
@@ -66,6 +67,10 @@ class LockdownService {
         }
       }
     }
+
+    // Draw the native full-screen system overlay so the lockdown survives leaving the app (best-effort;
+    // needs the "display over other apps" permission — request via lockdownOverlay.requestPermission()).
+    lockdownOverlay.start(this.totalDuration, this.strictness).catch(() => {});
 
     // Emit start event
     await emitEvent({
@@ -189,6 +194,7 @@ class LockdownService {
    */
   private cleanup(): void {
     LockTaskService.disableExtremeFocus().catch(console.error);
+    lockdownOverlay.stop().catch(() => {});
 
     this.isActive = false;
     this.endTime = null;

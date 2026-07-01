@@ -48,5 +48,8 @@
               <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
           </intent-filter>
       </receiver>
+    <service android:name=".LockdownOverlayService" android:exported="false" android:foregroundServiceType="specialUse">
+      <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="focus_lockdown"/>
+    </service>
   </application>
 </manifest>
