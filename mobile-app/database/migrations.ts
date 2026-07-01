@@ -231,5 +231,22 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    // Migration from v16 to v17: Add sensor_stats table (pedometer)
+    {
+      toVersion: 17,
+      steps: [
+        createTable({
+          name: 'sensor_stats',
+          columns: [
+            { name: 'date', type: 'number', isIndexed: true },
+            { name: 'steps', type: 'number' },
+            { name: 'meta', type: 'string', isOptional: true },
+            { name: 'user_id', type: 'string', isIndexed: true },
+            { name: 'created_at', type: 'number' },
+            { name: 'updated_at', type: 'number' },
+          ],
+        }),
+      ],
+    },
   ],
 });

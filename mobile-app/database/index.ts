@@ -17,6 +17,7 @@ import MusicCategory from './models/MusicCategory';
 import CodingLog from './models/CodingLog';
 import Contact from './models/Contact';
 import Category from './models/Category';
+import SensorStat from './models/SensorStat';
 
 // Detect if running in Expo Go (no native modules available)
 // In Expo Go, JSI is not available for WatermelonDB
@@ -50,6 +51,7 @@ export const database = new Database({
     CodingLog,
     Contact,
     Category,
+    SensorStat,
   ],
 });
 

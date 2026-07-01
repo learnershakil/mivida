@@ -23,6 +23,8 @@ import { alertService } from '../services/alertService'
 import { soundService } from '../services/soundService'
 import { runTaskMaintenance } from '../services/taskMaintenance'
 import { backupEventLog } from '../services/dbBackup'
+import { registerPushToken } from '../services/pushService'
+import { initSensors } from '../services/sensorService'
 import { appEvents, AppEvents } from '../services/appEvents'
 import '../global.css'
 
@@ -106,6 +108,10 @@ export default function Layout() {
         // Initialize alert service and reschedule any active alerts
         await alertService.init(user.id);
         await alertService.rescheduleActiveAlerts();
+
+        // Register for FCM push (mood pings) + start pedometer tracking — both best-effort.
+        registerPushToken().catch((e) => console.warn('[App] push register failed', e));
+        initSensors(user.id).catch((e) => console.warn('[App] sensors init failed', e));
 
         // Start Dead Man's Switch monitoring if user is awake
         if (user.isAwake) {
