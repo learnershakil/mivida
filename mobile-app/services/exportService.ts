@@ -14,7 +14,6 @@
  */
 
 import { Platform, Alert as RNAlert } from 'react-native';
-import * as DocumentPicker from 'expo-document-picker';
 import { database } from '../database';
 import EventLog from '../database/models/EventLog';
 import { SCHEMA_VERSION } from '../database/schema';
@@ -382,183 +381,13 @@ export async function saveExportToDevice(content: string, filename: string): Pro
   }
 }
 
-/**
- * Pick and read a JSONL file for import
- */
-export async function pickImportFile(): Promise<{ content: string; filename: string } | null> {
-  try {
-    const FileSystemModule = await getFileSystem();
-
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ['application/json', 'application/jsonl', 'text/plain', '*/*'],
-      copyToCacheDirectory: true,
-    });
-
-    if (result.canceled || !result.assets || result.assets.length === 0) {
-      return null;
-    }
-
-    const asset = result.assets[0];
-    const content = await FileSystemModule.readAsStringAsync(asset.uri, {
-      encoding: 'utf8',
-    });
-
-    console.log(`[ExportService] File picked: ${asset.name}, size: ${content.length}`);
-
-    return {
-      content,
-      filename: asset.name || 'import.jsonl',
-    };
-  } catch (error) {
-    console.error('[ExportService] Failed to pick import file:', error);
-    throw error;
-  }
-}
-
-/**
- * Import result
- */
-export interface ImportResult {
-  success: boolean;
-  totalLines: number;
-  importedEvents: number;
-  skippedEvents: number;
-  errors: string[];
-  metadata?: ExportMetadata;
-}
-
-/**
- * Import events from JSONL content
- * Validates schema compatibility and prevents duplicate imports
- */
-export async function importEventsFromJsonl(
-  content: string,
-  userId: string
-): Promise<ImportResult> {
-  const lines = content.trim().split('\n');
-  const result: ImportResult = {
-    success: false,
-    totalLines: lines.length,
-    importedEvents: 0,
-    skippedEvents: 0,
-    errors: [],
-  };
-
-  if (lines.length === 0) {
-    result.errors.push('Empty file');
-    return result;
-  }
-
-  // Parse metadata from first line
-  try {
-    const firstLine = JSON.parse(lines[0]);
-    if (firstLine._meta) {
-      result.metadata = firstLine._meta;
-
-      // Check schema version compatibility
-      if (firstLine._meta.schemaVersion > SCHEMA_VERSION) {
-        result.errors.push(
-          `File schema version (${firstLine._meta.schemaVersion}) is newer than app (${SCHEMA_VERSION}). Please update the app.`
-        );
-        return result;
-      }
-    }
-  } catch (e) {
-    result.errors.push('Invalid metadata in first line');
-    return result;
-  }
-
-  // Get existing event IDs to prevent duplicates
-  const existingEvents = await database.get<EventLog>('event_logs').query().fetch();
-  const existingIds = new Set(
-    existingEvents
-      .filter((e) => e.userId === userId)
-      .map((e) => `${e.eventType}-${e.entityId}-${e.createdAt}`)
-  );
-
-  // Process event lines
-  const eventsToImport: Array<{
-    eventType: string;
-    entityType: string;
-    entityId: string;
-    payload: any;
-    createdAt: string;
-  }> = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    try {
-      const event = JSON.parse(lines[i]);
-
-      // Create unique key for deduplication
-      const eventKey = `${event.eventType}-${event.entityId}-${new Date(event.createdAt).getTime()}`;
-
-      if (existingIds.has(eventKey)) {
-        result.skippedEvents++;
-        continue;
-      }
-
-      eventsToImport.push(event);
-    } catch (e) {
-      result.errors.push(`Line ${i + 1}: Invalid JSON`);
-    }
-  }
-
-  // Import events in a single write batch
-  if (eventsToImport.length > 0) {
-    try {
-      await database.write(async () => {
-        for (const event of eventsToImport) {
-          await database.get<EventLog>('event_logs').create((record) => {
-            record.eventType = event.eventType;
-            record.entityType = event.entityType;
-            record.entityId = event.entityId;
-            record.payload = event.payload;
-            record.userId = userId;
-            record.deviceId = 'imported';
-            record.sessionId = `import-${Date.now()}`;
-            record.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            record.schemaVersion = SCHEMA_VERSION;
-            // Note: createdAt is readonly, WatermelonDB will set it automatically
-          });
-          result.importedEvents++;
-        }
-      });
-    } catch (e) {
-      result.errors.push(`Failed to write events: ${e}`);
-      return result;
-    }
-  }
-
-  result.success = result.errors.length === 0 || result.importedEvents > 0;
-
-  // Log the import
-  await emitEvent({
-    eventType: EventTypes.EXPORT_GENERATED, // Reusing event type for import
-    entityType: 'import',
-    entityId: `import-${Date.now()}`,
-    payload: {
-      action: 'events_imported',
-      importedCount: result.importedEvents,
-      skippedCount: result.skippedEvents,
-      errorCount: result.errors.length,
-    },
-    userId,
-  });
-
-  console.log(
-    `[ExportService] Import complete: ${result.importedEvents} imported, ${result.skippedEvents} skipped`
-  );
-
-  return result;
-}
+// Import removed per spec (§8.3): the app only exports. The prior JSONL import pipeline was deleted here.
 
 export default {
   toJsonl: exportEventsAsJsonl,
-  fromJsonl: importEventsFromJsonl,
   getStats: getExportStats,
   purge: purgeOldEvents,
   formatSize: formatFileSize,
   generateFilename: generateExportFilename,
   share: shareExport,
-  pickImportFile: pickImportFile,
 };

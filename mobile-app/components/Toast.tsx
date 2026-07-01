@@ -39,7 +39,7 @@ export function GlobalToast() {
     }
   }, [visible]);
 
-  if (!visible && opacity._value === 0) return null;
+  if (!visible && (opacity as any)._value === 0) return null;
 
   const getIcon = () => {
     switch (type) {
