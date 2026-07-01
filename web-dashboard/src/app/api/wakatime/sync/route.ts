@@ -1,49 +1,37 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import * as cheerio from 'cheerio';
-import crypto from 'crypto';
+import { requireMobileUser, AuthError } from '@/lib/auth';
+import { env } from '@/lib/env';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('x-http-key');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const user = await requireMobileUser(request);
 
-    const user = await prisma.user.upsert({
-      where: { xHttpKey: authHeader },
-      update: {
-        wakatimeUsername: process.env.WAKATIME_USERNAME || undefined,
-        wakatimePassword: process.env.WAKATIME_PASSWORD || undefined,
-      },
-      create: {
-        xHttpKey: authHeader,
-        name: 'My Dashboard User',
-        wakatimeUsername: process.env.WAKATIME_USERNAME || undefined,
-        wakatimePassword: process.env.WAKATIME_PASSWORD || undefined,
-      },
-    });
+    const wakatimeUsername = env.wakatimeUsername();
+    const wakatimeApiKey = env.wakatimeApiKey();
 
-    if (!user.wakatimeUsername) {
+    if (!wakatimeUsername) {
       return NextResponse.json({ error: 'No WakaTime username configured' }, { status: 400 });
     }
 
     let stats = null;
 
-    // Try fetching via REST API first if they provided a password (assuming it's an API Key or base64 token)
-    if (user.wakatimePassword) {
+    // Primary: official WakaTime API with the API KEY (Basic auth = base64 of the key). AUDIT §7 fix:
+    // the old code base64-encoded the login password, which WakaTime rejects.
+    if (wakatimeApiKey) {
       try {
         const response = await fetch('https://wakatime.com/api/v1/users/current/stats/last_7_days', {
           headers: {
-            'Authorization': `Basic ${Buffer.from(user.wakatimePassword).toString('base64')}`
-          }
+            Authorization: `Basic ${Buffer.from(wakatimeApiKey).toString('base64')}`,
+          },
         });
         if (response.ok) {
           const data = await response.json();
           stats = {
             duration: data.data.total_seconds,
             languages: data.data.languages.map((l: any) => l.name).join(', '),
-            project: data.data.projects[0]?.name || 'Unknown'
+            project: data.data.projects[0]?.name || 'Unknown',
           };
         }
       } catch (err) {
@@ -51,12 +39,12 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fallback: Scrape public profile if API failed or no password was provided
+    // Fallback: scrape the public profile (fragile — 2FA/layout changes break it).
     if (!stats) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-        const response = await fetch(`https://wakatime.com/@${user.wakatimeUsername}`, {
+        const response = await fetch(`https://wakatime.com/@${wakatimeUsername}`, {
           signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -97,8 +85,7 @@ export async function POST(request: Request) {
     }
 
     // Store the daily coding log. Upsert on the (userId, date, project, language) unique key so repeated
-    // syncs update the day's row instead of inserting duplicates (fixes AUDIT §7). Full WakaTime rework
-    // (API-key auth, encrypted creds) lands in slice 3.7.
+    // syncs update the day's row instead of inserting duplicates (AUDIT §7).
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const now = BigInt(Date.now());
@@ -124,11 +111,20 @@ export async function POST(request: Request) {
       },
     });
 
-    // Convert BigInt for JSON
-    const logObj = { ...log, date: Number(log.date) };
+    // Serialize without BigInt (createdAt/updatedAt are BigInt and would break JSON).
+    const logObj = {
+      id: log.id,
+      date: Number(log.date),
+      duration: log.duration,
+      project: log.project,
+      language: log.language,
+    };
 
     return NextResponse.json({ success: true, data: logObj });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('WakaTime Sync Error:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
