@@ -68,7 +68,7 @@ export function startMoodTracker(intervalMinutes: number = 45, userId: string): 
 
       await emitEvent({
         eventType: EventTypes.MOOD_LOGGED,
-        entityType: 'mood_tracker',
+        entityType: 'mood',
         entityId: `mood_check_${Date.now()}`,
         payload: {
           action: 'notification_sent',
@@ -214,7 +214,7 @@ export async function getMoodDistribution(
 
   const moods = await database.get<MoodLog>('mood_logs').query(Q.where('user_id', userId)).fetch();
 
-  const filtered = moods.filter((m) => !m.deletedAt && m.createdAt >= startDate.getTime());
+  const filtered = moods.filter((m) => !m.deletedAt && m.createdAt.getTime() >= startDate.getTime());
 
   const distribution: Record<MoodLevel, number> = {
     TERRIBLE: 0,
@@ -271,7 +271,7 @@ export async function deleteMoodEntry(moodId: string, userId: string): Promise<v
 
   await database.write(async () => {
     await mood.update((record) => {
-      record.deletedAt = Date.now();
+      record.deletedAt = new Date();
     });
   });
 

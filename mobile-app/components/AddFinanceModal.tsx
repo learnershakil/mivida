@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { X, Plus, Minus, IndianRupee, Tag, FileText, Calendar, Clock, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { addIncome, addExpense } from '../services/financeService';
+import { addIncome, addExpense, scheduleTransaction } from '../services/financeService';
 
 interface AddFinanceModalProps {
     visible: boolean;
@@ -71,36 +71,32 @@ export function AddFinanceModal({ visible, onClose, userId }: AddFinanceModalPro
         setIsSubmitting(true);
 
         try {
-            // Use scheduled date as transaction date if scheduled, otherwise use now
-            const transactionDate = isScheduled && scheduledDate ? scheduledDate : new Date();
-
-            if (transactionType === 'income') {
-                await addIncome({
-                    amount: amountNum,
-                    category: category.trim() || undefined,
-                    source: source.trim() || undefined,
-                    destination: destination.trim() || undefined,
-                    description: description.trim() || undefined,
-                    transactionDate,
-                    userId,
-                });
-            } else {
-                await addExpense({
-                    amount: amountNum,
-                    category: category.trim() || undefined,
-                    source: source.trim() || undefined,
-                    destination: destination.trim() || undefined,
-                    description: description.trim() || undefined,
-                    transactionDate,
-                    userId,
-                });
-            }
+            const base = {
+                amount: amountNum,
+                category: category.trim() || undefined,
+                source: source.trim() || undefined,
+                destination: destination.trim() || undefined,
+                description: description.trim() || undefined,
+                userId,
+            };
 
             if (isScheduled && scheduledDate) {
+                // Real scheduled transaction: NOT counted in the balance until it is triggered on/after
+                // its date by the scheduler (fixes AUDIT §6.2 — it used to post immediately).
+                await scheduleTransaction({
+                    ...base,
+                    type: transactionType === 'income' ? 'INCOME' : 'EXPENSE',
+                    transactionDate: scheduledDate,
+                    scheduledFor: scheduledDate,
+                });
                 Alert.alert(
                     'Transaction Scheduled',
                     `Your ${transactionType} has been scheduled for ${scheduledDate.toLocaleDateString()}`
                 );
+            } else if (transactionType === 'income') {
+                await addIncome({ ...base, transactionDate: new Date() });
+            } else {
+                await addExpense({ ...base, transactionDate: new Date() });
             }
 
             resetForm();

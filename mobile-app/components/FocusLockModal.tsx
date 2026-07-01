@@ -56,8 +56,9 @@ export function FocusLockModal({ visible, onClose, userId }: FocusLockModalProps
                     title: `Scheduled Focus (${duration}m)`,
                     description: `Focus lockdown session for ${duration} minutes.`,
                     type: 'alert',
-                    startTime: scheduleDate.getTime(),
-                }, userId);
+                    startTime: scheduleDate,
+                    userId,
+                });
                 Alert.alert('Scheduled', `Focus session scheduled for ${scheduleDate.toLocaleTimeString()}`);
             } else {
                 await lockdownService.startLockdown(duration, userId);
