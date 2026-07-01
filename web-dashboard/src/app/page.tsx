@@ -1,8 +1,12 @@
 import { prisma } from "@/lib/prisma";
 
+// Live data + will be auth-gated; never prerender at build time (would hit the DB).
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const users = await prisma.user.findMany({
     include: {
+      profile: true,
       tasks: true,
       codingLogs: {
         orderBy: { date: 'desc' },
@@ -35,7 +39,7 @@ export default async function Home() {
                   <p className="text-zinc-500 text-sm mt-1">ID: {user.id}</p>
                 </div>
                 <div className="bg-[#C0F67F] text-black px-4 py-2 rounded-full font-bold text-sm">
-                  {user.isAwake ? "Awake" : "Sleeping"}
+                  {user.profile?.isAwake ? "Awake" : "Sleeping"}
                 </div>
               </div>
 
