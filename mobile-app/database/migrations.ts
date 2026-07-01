@@ -221,5 +221,15 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    // Migration from v15 to v16: Add raw 1-10 mood score column
+    {
+      toVersion: 16,
+      steps: [
+        addColumns({
+          table: 'mood_logs',
+          columns: [{ name: 'score10', type: 'number', isOptional: true }],
+        }),
+      ],
+    },
   ],
 });

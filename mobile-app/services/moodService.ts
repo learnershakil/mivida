@@ -42,6 +42,7 @@ export type MoodLevel = keyof typeof MoodLevels;
 export interface MoodEntryParams {
   mood: MoodLevel;
   note?: string;
+  score10?: number; // raw 1-10 score
   userId: string;
 }
 
@@ -117,13 +118,14 @@ export async function initMoodTracker(userId: string): Promise<void> {
  * Log a mood entry
  */
 export async function logMood(params: MoodEntryParams): Promise<MoodLog> {
-  const { mood, note, userId } = params;
+  const { mood, note, score10, userId } = params;
 
   const moodLog = await database.write(async () => {
     return await database.get<MoodLog>('mood_logs').create((record) => {
       record.mood = mood;
       record.moodValue = MoodLevels[mood];
       record.level = MoodLevels[mood];
+      record.score10 = score10;
       record.note = note;
       record.userId = userId;
     });

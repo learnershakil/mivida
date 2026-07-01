@@ -22,6 +22,7 @@ import { deadManService } from '../services/deadMan'
 import { alertService } from '../services/alertService'
 import { soundService } from '../services/soundService'
 import { runTaskMaintenance } from '../services/taskMaintenance'
+import { backupEventLog } from '../services/dbBackup'
 import { appEvents, AppEvents } from '../services/appEvents'
 import '../global.css'
 
@@ -95,6 +96,9 @@ export default function Layout() {
 
         // Initialize sound service
         await soundService.init(user.id);
+
+        // Back up the event log before any migration/maintenance mutates state (Guardrail 2)
+        await backupEventLog(user.id);
 
         // Run task maintenance (auto-marking and renewals)
         await runTaskMaintenance(user.id);
