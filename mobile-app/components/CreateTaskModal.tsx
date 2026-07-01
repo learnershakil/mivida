@@ -10,7 +10,7 @@
  * - Alert: Notification-based tasks (timeout or interval)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -23,9 +23,13 @@ import {
     StyleSheet,
     ScrollView,
 } from 'react-native';
-import { X, Plus, Clock, Tag, FileText, Users, Calendar, AlertCircle, Info, Bell, Timer, Repeat } from 'lucide-react-native';
+import { X, Plus, Clock, Tag, FileText, Users, Calendar, AlertCircle, Info, Bell, Timer, Repeat, UserPlus } from 'lucide-react-native';
 import { createTask } from '../services/taskService';
 import { CustomDateTimePicker } from './CustomDateTimePicker';
+import { AutocompleteField } from './AutocompleteField';
+import categoryService from '../services/categoryService';
+import contactService from '../services/contactService';
+import { Suggestion } from '../services/autocomplete';
 
 interface CreateTaskModalProps {
     visible: boolean;
@@ -50,6 +54,27 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
     const [alertType, setAlertType] = useState<'timeout' | 'interval'>('timeout');
     const [alertIntervalMinutes, setAlertIntervalMinutes] = useState('');
 
+    // Categories master list + contact linkage (live-filter pickers)
+    const [categoryOptions, setCategoryOptions] = useState<Suggestion[]>([]);
+    const [contactOptions, setContactOptions] = useState<Suggestion[]>([]);
+    const [contactId, setContactId] = useState<string | undefined>(undefined);
+    const [contactQuery, setContactQuery] = useState('');
+
+    useEffect(() => {
+        if (!visible) return;
+        (async () => {
+            try {
+                await categoryService.seedDefaultsIfEmpty(userId);
+                const cats = await categoryService.getAll(userId);
+                setCategoryOptions(cats.map((c) => ({ id: c.id, label: c.name })));
+                const contacts = await contactService.getAll(userId);
+                setContactOptions(contacts.map((c) => ({ id: c.id, label: c.name })));
+            } catch (e) {
+                console.warn('[CreateTaskModal] Failed to load categories/contacts', e);
+            }
+        })();
+    }, [visible, userId]);
+
     // Date/Time picker states (simplified for custom picker)
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
@@ -69,10 +94,15 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
         setShowEndPicker(false);
         setAlertType('timeout');
         setAlertIntervalMinutes('');
+        setContactId(undefined);
+        setContactQuery('');
     };
 
-    const formatDateTime = (date: Date | null): string => {
+    const formatDateTime = (date: Date | null, timeOnly = false): string => {
         if (!date) return 'Tap to select';
+        if (timeOnly) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
         return date.toLocaleString([], {
             year: 'numeric',
             month: 'short',
@@ -137,6 +167,9 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
                 .map(p => p.trim())
                 .filter(p => p.length > 0);
 
+            // Ensure the typed category exists in the master list (creates it if new → syncs everywhere).
+            await categoryService.ensureCategory(category.trim(), userId);
+
             await createTask({
                 title: title.trim(),
                 description: description.trim(),
@@ -145,6 +178,7 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
                 type: taskType,
                 priority,
                 assignedPersons,
+                contactId,
                 startTime: taskType !== 'alert' ? startTime || undefined : undefined,
                 endTime: taskType !== 'alert' ? endTime || undefined : undefined,
                 // Alert-specific fields
@@ -282,18 +316,17 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
                                 </View>
                             </View>
 
-                            {/* Category Input */}
+                            {/* Category (live-filtered master list; type to create a new one) */}
                             <View style={styles.inputContainer}>
-                                <View style={styles.inputRow}>
-                                    <Tag size={20} color="#6B7280" />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Category (e.g., Work, Health) *"
-                                        value={category}
-                                        onChangeText={setCategory}
-                                        placeholderTextColor="#9CA3AF"
-                                    />
-                                </View>
+                                <AutocompleteField
+                                    icon={<Tag size={20} color="#6B7280" />}
+                                    placeholder="Category (e.g., Work, Health) *"
+                                    value={category}
+                                    onChangeText={setCategory}
+                                    suggestions={categoryOptions}
+                                    onSelect={(s) => setCategory(s.label)}
+                                    allowCreate
+                                />
                             </View>
 
                             {/* Alert Type Selection (only for Alert tasks) */}
@@ -405,7 +438,7 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
                                 </View>
                             </View>
 
-                            {/* Assigned Persons */}
+                            {/* Assigned Persons (free-text names) */}
                             <View style={styles.inputContainer}>
                                 <View style={styles.inputRow}>
                                     <Users size={20} color="#6B7280" />
@@ -419,6 +452,26 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
                                 </View>
                             </View>
 
+                            {/* Link a Contact (optional — pick an existing contact; add contacts from Profile) */}
+                            {contactOptions.length > 0 && (
+                                <View style={styles.inputContainer}>
+                                    <AutocompleteField
+                                        icon={<UserPlus size={20} color="#6B7280" />}
+                                        placeholder="Link a contact (optional)"
+                                        value={contactQuery}
+                                        onChangeText={(t) => {
+                                            setContactQuery(t);
+                                            setContactId(undefined);
+                                        }}
+                                        suggestions={contactOptions}
+                                        onSelect={(s) => {
+                                            setContactId(s.id);
+                                            setContactQuery(s.label);
+                                        }}
+                                    />
+                                </View>
+                            )}
+
                             {/* Start Time (only for Custom/Fixed tasks) */}
                             {taskType !== 'alert' && (
                                 <View style={styles.inputContainer}>
@@ -429,7 +482,7 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
                                     >
                                         <Calendar size={20} color="#6B7280" />
                                         <Text style={[styles.datePickerText, !startTime && styles.datePickerPlaceholder]}>
-                                            {formatDateTime(startTime)}
+                                            {formatDateTime(startTime, taskType === 'fixed')}
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -445,7 +498,7 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
                                     >
                                         <Calendar size={20} color="#6B7280" />
                                         <Text style={[styles.datePickerText, !endTime && styles.datePickerPlaceholder]}>
-                                            {formatDateTime(endTime)}
+                                            {formatDateTime(endTime, taskType === 'fixed')}
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -486,8 +539,8 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
                     onClose={() => setShowStartPicker(false)}
                     onConfirm={(date) => setStartTime(date)}
                     initialDate={startTime || undefined}
-                    mode="datetime"
-                    title="Select Start Date & Time"
+                    mode={taskType === 'fixed' ? 'time' : 'datetime'}
+                    title={taskType === 'fixed' ? 'Select Start Time' : 'Select Start Date & Time'}
                 />
 
                 <CustomDateTimePicker
@@ -495,8 +548,8 @@ export function CreateTaskModal({ visible, onClose, userId }: CreateTaskModalPro
                     onClose={() => setShowEndPicker(false)}
                     onConfirm={(date) => setEndTime(date)}
                     initialDate={endTime || undefined}
-                    mode="datetime"
-                    title="Select End Date & Time"
+                    mode={taskType === 'fixed' ? 'time' : 'datetime'}
+                    title={taskType === 'fixed' ? 'Select End Time' : 'Select End Date & Time'}
                 />
             </KeyboardAvoidingView>
         </Modal>

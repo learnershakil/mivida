@@ -1,6 +1,6 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export const schema = appSchema({
   version: SCHEMA_VERSION,
@@ -260,6 +260,21 @@ export const schema = appSchema({
         { name: 'user_id', type: 'string', isIndexed: true },
         { name: 'created_at', type: 'number', isIndexed: true },
         { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    // ============================================
+    // CATEGORIES - Master list of task categories
+    // ============================================
+    tableSchema({
+      name: 'categories',
+      columns: [
+        { name: 'name', type: 'string' },
+        { name: 'color', type: 'string', isOptional: true },
+        { name: 'source', type: 'string', isOptional: true }, // 'web' | 'mobile'
+        { name: 'user_id', type: 'string', isIndexed: true },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true },
       ],
     }),
     // ============================================

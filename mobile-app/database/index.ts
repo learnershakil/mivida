@@ -16,10 +16,11 @@ import MusicTrack from './models/MusicTrack';
 import MusicCategory from './models/MusicCategory';
 import CodingLog from './models/CodingLog';
 import Contact from './models/Contact';
+import Category from './models/Category';
 
 // Detect if running in Expo Go (no native modules available)
 // In Expo Go, JSI is not available for WatermelonDB
-const isExpoGo = typeof global !== 'undefined' && !global?.nativeModuleProxy;
+const isExpoGo = typeof global !== 'undefined' && !(global as any)?.nativeModuleProxy;
 
 // SQLite adapter configuration
 // JSI is disabled for Expo Go compatibility - enable for development builds
@@ -48,6 +49,7 @@ export const database = new Database({
     MusicCategory,
     CodingLog,
     Contact,
+    Category,
   ],
 });
 
