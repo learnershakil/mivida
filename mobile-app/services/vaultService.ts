@@ -247,6 +247,20 @@ export async function updateNote(
 }
 
 /**
+ * Safely decrypt a stored vault string. Falls back to the original value for legacy/plaintext data
+ * so display never shows raw ciphertext or crashes (fixes AUDIT §6.1 note round-trip bug).
+ */
+export async function decryptText(cipher: string | undefined): Promise<string> {
+  if (!cipher) return '';
+  try {
+    const plain = await vaultEncryptionService.decrypt(cipher);
+    return plain || cipher;
+  } catch {
+    return cipher;
+  }
+}
+
+/**
  * Get all notes
  */
 export async function getNotes(userId: string): Promise<VaultMedia[]> {
@@ -390,11 +404,13 @@ export async function getAudio(userId: string): Promise<VaultMedia[]> {
  */
 export async function renameItem(itemId: string, newName: string, userId: string): Promise<void> {
   const item = await database.get<VaultMedia>('vault_media').find(itemId);
+  // Note titles are encrypted at rest (consistent with addNote); audio/media titles stay plaintext.
+  const titleValue = item.mediaType === 'note' ? await vaultEncryptionService.encrypt(newName) : newName;
 
   await database.write(async () => {
     await item.update((record) => {
       if (record.mediaType === 'note' || record.mediaType === 'audio') {
-        record.title = newName;
+        record.title = titleValue;
       } else {
         record.filename = newName;
         record.title = newName;
@@ -523,6 +539,7 @@ const vaultService = {
   addNote,
   updateNote,
   getNotes,
+  decryptText,
   // Media
   addMedia,
   getMedia,

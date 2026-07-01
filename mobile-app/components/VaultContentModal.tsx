@@ -61,6 +61,8 @@ export function VaultContentModal({ visible, onClose, userId }: VaultContentModa
     const [editingNote, setEditingNote] = useState<VaultMedia | null>(null);
     const [noteTitle, setNoteTitle] = useState('');
     const [noteContent, setNoteContent] = useState('');
+    // Decrypted title/content keyed by note id (notes are stored encrypted).
+    const [noteText, setNoteText] = useState<Record<string, { title: string; content: string }>>({});
 
     // Media preview states
     const [selectedMedia, setSelectedMedia] = useState<VaultMedia | null>(null);
@@ -105,6 +107,17 @@ export function VaultContentModal({ visible, onClose, userId }: VaultContentModa
                 vaultService.getMedia(userId),
                 vaultService.getAudio(userId),
             ]);
+            // Decrypt note title/content for display (they are stored as AES ciphertext).
+            const decrypted: Record<string, { title: string; content: string }> = {};
+            await Promise.all(
+                notesData.map(async (n) => {
+                    decrypted[n.id] = {
+                        title: await vaultService.decryptText(n.title),
+                        content: await vaultService.decryptText(n.content),
+                    };
+                })
+            );
+            setNoteText(decrypted);
             setNotes(notesData);
             setMedia(mediaData);
             setAudioFiles(audioData);
@@ -127,9 +140,10 @@ export function VaultContentModal({ visible, onClose, userId }: VaultContentModa
     };
 
     const handleEditNote = (note: VaultMedia) => {
+        const decrypted = noteText[note.id] || { title: '', content: '' };
         setEditingNote(note);
-        setNoteTitle(note.title || '');
-        setNoteContent(note.content || '');
+        setNoteTitle(decrypted.title);
+        setNoteContent(decrypted.content);
         setShowNoteEditor(true);
     };
 
@@ -537,13 +551,13 @@ export function VaultContentModal({ visible, onClose, userId }: VaultContentModa
                         >
                             <View style={styles.noteHeader}>
                                 <Text style={styles.noteTitle} numberOfLines={1}>
-                                    {note.title || 'Untitled Note'}
+                                    {noteText[note.id]?.title || 'Untitled Note'}
                                 </Text>
                                 <TouchableOpacity onPress={() => handleDeleteNote(note)}>
                                     <Trash2 size={18} color="#EF4444" />
                                 </TouchableOpacity>
                             </View>
-                            <Text style={styles.notePreview} numberOfLines={3}>{note.content}</Text>
+                            <Text style={styles.notePreview} numberOfLines={3}>{noteText[note.id]?.content || ''}</Text>
                             <Text style={styles.noteDate}>
                                 {new Date(note.createdAt).toLocaleDateString()}
                             </Text>

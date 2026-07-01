@@ -12,7 +12,7 @@ import EventLog from '../../database/models/EventLog';
 import { MoodLogModal } from '../../components/MoodLogModal';
 import { SettingsModal } from '../../components/SettingsModal';
 import DelegationModal from '../../components/DelegationModal';
-import VaultContentScreen from '../../components/VaultContentScreen';
+import { VaultContentModal } from '../../components/VaultContentModal';
 import DailyReflectionModal from '../../components/DailyReflectionModal';
 import { EditProfileModal } from '../../components/EditProfileModal';
 import NotificationHistoryModal from '../../components/NotificationHistoryModal';
@@ -109,6 +109,7 @@ function ProfileScreen({ users, tasks, moodLogs, events }: ProfileScreenProps) {
                   <TouchableOpacity
                      className="h-28 w-28 bg-white p-2 rounded-full shadow-sm mb-4"
                      delayLongPress={500}
+                     onLongPress={() => setShowVaultAccess(true)}
                   >
                      <Image
                         source={{ uri: user?.avatarUrl || 'https://avatars.githubusercontent.com/u/128307325?v=4' }}
@@ -313,8 +314,8 @@ function ProfileScreen({ users, tasks, moodLogs, events }: ProfileScreenProps) {
                userId={userId}
             />
 
-            {/* Vault Content Screen */}
-            <VaultContentScreen
+            {/* Vault Content (unified — same modal as Home) */}
+            <VaultContentModal
                visible={showVault}
                onClose={() => setShowVault(false)}
                userId={userId}

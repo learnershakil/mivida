@@ -18,7 +18,7 @@ const TABLES = [
     { name: 'mood_logs', label: 'Moods', icon: '😊', color: '#FF2D55' },
     { name: 'notification_logs', label: 'Notifications', icon: '🔔', color: '#5856D6' },
     { name: 'settings', label: 'Settings', icon: '⚙️', color: '#8E8E93' },
-    { name: 'vault_media', label: 'Vault Media', icon: '🔒', color: '#007AFF' },
+    // vault_media intentionally EXCLUDED — vault contents must never be browsable (AUDIT §6.1, Guardrail 3).
     { name: 'music_tracks', label: 'Music Tracks', icon: '🎵', color: '#FF2D55' },
     { name: 'music_categories', label: 'Music Categories', icon: '🎼', color: '#AF52DE' },
 ];
