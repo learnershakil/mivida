@@ -1,6 +1,12 @@
 node_modules/
 .expo/
 dist/
+
+# Env / secrets — never commit; .env.example is the template
+.env
+.env*.local
+!.env.example
+
 npm-debug.*
 *.jks
 *.p8
