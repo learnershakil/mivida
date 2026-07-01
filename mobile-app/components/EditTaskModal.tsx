@@ -18,9 +18,13 @@ import {
     StyleSheet,
     ScrollView,
 } from 'react-native';
-import { X, Save, Clock, Tag, FileText, Users, Calendar, AlertCircle, Bell, Timer, Repeat } from 'lucide-react-native';
+import { X, Save, Clock, Tag, FileText, Users, Calendar, AlertCircle, Bell, Timer, Repeat, UserPlus } from 'lucide-react-native';
 import { updateTask, UpdateTaskParams } from '../services/taskService';
 import { CustomDateTimePicker } from './CustomDateTimePicker';
+import { AutocompleteField } from './AutocompleteField';
+import categoryService from '../services/categoryService';
+import contactService from '../services/contactService';
+import { Suggestion } from '../services/autocomplete';
 import Task from '../database/models/Task';
 
 interface EditTaskModalProps {
@@ -49,24 +53,47 @@ export function EditTaskModal({ visible, onClose, task, userId }: EditTaskModalP
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
 
+    // Categories master list + contact linkage (live-filter pickers)
+    const [categoryOptions, setCategoryOptions] = useState<Suggestion[]>([]);
+    const [contactOptions, setContactOptions] = useState<Suggestion[]>([]);
+    const [contactId, setContactId] = useState<string | undefined>(undefined);
+    const [contactQuery, setContactQuery] = useState('');
+
     // Load task data when modal opens
     useEffect(() => {
-        if (task && visible) {
-            setTitle(task.title || '');
-            setDescription(task.description || '');
-            setCategory(task.category || '');
-            setDuration(task.expectedDurationMinutes?.toString() || '');
-            setPriority(task.priority || 'normal');
-            setAssignedPersonsText(task.assignedPersons?.join(', ') || '');
-            setStartTime(task.startTime ? new Date(task.startTime) : null);
-            setEndTime(task.endTime ? new Date(task.endTime) : null);
-            setAlertType(task.alertType || 'timeout');
-            setAlertIntervalMinutes(task.alertIntervalMinutes?.toString() || '');
-        }
-    }, [task, visible]);
+        if (!task || !visible) return;
+        setTitle(task.title || '');
+        setDescription(task.description || '');
+        setCategory(task.category || '');
+        setDuration(task.expectedDurationMinutes?.toString() || '');
+        setPriority(task.priority || 'normal');
+        setAssignedPersonsText(task.assignedPersons?.join(', ') || '');
+        setStartTime(task.startTime ? new Date(task.startTime) : null);
+        setEndTime(task.endTime ? new Date(task.endTime) : null);
+        setAlertType(task.alertType || 'timeout');
+        setAlertIntervalMinutes(task.alertIntervalMinutes?.toString() || '');
 
-    const formatDateTime = (date: Date | null): string => {
+        (async () => {
+            try {
+                await categoryService.seedDefaultsIfEmpty(userId);
+                const cats = await categoryService.getAll(userId);
+                setCategoryOptions(cats.map((c) => ({ id: c.id, label: c.name })));
+                const contacts = await contactService.getAll(userId);
+                setContactOptions(contacts.map((c) => ({ id: c.id, label: c.name })));
+                setContactId(task.contactId || undefined);
+                const linked = task.contactId ? contacts.find((c) => c.id === task.contactId) : undefined;
+                setContactQuery(linked?.name || '');
+            } catch (e) {
+                console.warn('[EditTaskModal] Failed to load categories/contacts', e);
+            }
+        })();
+    }, [task, visible, userId]);
+
+    const formatDateTime = (date: Date | null, timeOnly = false): string => {
         if (!date) return 'Tap to select';
+        if (timeOnly) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
         return date.toLocaleString([], {
             year: 'numeric',
             month: 'short',
@@ -130,12 +157,16 @@ export function EditTaskModal({ visible, onClose, task, userId }: EditTaskModalP
                 .map(p => p.trim())
                 .filter(p => p.length > 0);
 
+            // Ensure the typed category exists in the master list (creates it if new).
+            await categoryService.ensureCategory(category.trim(), userId);
+
             const updateParams: UpdateTaskParams = {
                 title: title.trim(),
                 description: description.trim(),
                 category: category.trim(),
                 priority,
                 assignedPersons,
+                contactId,
             };
 
             if (task.type !== 'alert') {
@@ -216,18 +247,17 @@ export function EditTaskModal({ visible, onClose, task, userId }: EditTaskModalP
                                 </View>
                             </View>
 
-                            {/* Category Input */}
+                            {/* Category (live-filtered master list; type to create a new one) */}
                             <View style={styles.inputContainer}>
-                                <View style={styles.inputRow}>
-                                    <Tag size={20} color="#6B7280" />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Category *"
-                                        value={category}
-                                        onChangeText={setCategory}
-                                        placeholderTextColor="#9CA3AF"
-                                    />
-                                </View>
+                                <AutocompleteField
+                                    icon={<Tag size={20} color="#6B7280" />}
+                                    placeholder="Category *"
+                                    value={category}
+                                    onChangeText={setCategory}
+                                    suggestions={categoryOptions}
+                                    onSelect={(s) => setCategory(s.label)}
+                                    allowCreate
+                                />
                             </View>
 
                             {/* Alert Type Selection (only for Alert tasks) */}
@@ -326,7 +356,7 @@ export function EditTaskModal({ visible, onClose, task, userId }: EditTaskModalP
                                 </View>
                             </View>
 
-                            {/* Assigned Persons */}
+                            {/* Assigned Persons (free-text names) */}
                             <View style={styles.inputContainer}>
                                 <View style={styles.inputRow}>
                                     <Users size={20} color="#6B7280" />
@@ -340,6 +370,26 @@ export function EditTaskModal({ visible, onClose, task, userId }: EditTaskModalP
                                 </View>
                             </View>
 
+                            {/* Link a Contact (optional — pick an existing contact; add contacts from Profile) */}
+                            {contactOptions.length > 0 && (
+                                <View style={styles.inputContainer}>
+                                    <AutocompleteField
+                                        icon={<UserPlus size={20} color="#6B7280" />}
+                                        placeholder="Link a contact (optional)"
+                                        value={contactQuery}
+                                        onChangeText={(t) => {
+                                            setContactQuery(t);
+                                            setContactId(undefined);
+                                        }}
+                                        suggestions={contactOptions}
+                                        onSelect={(s) => {
+                                            setContactId(s.id);
+                                            setContactQuery(s.label);
+                                        }}
+                                    />
+                                </View>
+                            )}
+
                             {/* Start Time (only for Custom/Fixed tasks) */}
                             {task.type !== 'alert' && (
                                 <View style={styles.inputContainer}>
@@ -350,7 +400,7 @@ export function EditTaskModal({ visible, onClose, task, userId }: EditTaskModalP
                                     >
                                         <Calendar size={20} color="#6B7280" />
                                         <Text style={[styles.datePickerText, !startTime && styles.datePickerPlaceholder]}>
-                                            {formatDateTime(startTime)}
+                                            {formatDateTime(startTime, task.type === 'fixed')}
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -366,7 +416,7 @@ export function EditTaskModal({ visible, onClose, task, userId }: EditTaskModalP
                                     >
                                         <Calendar size={20} color="#6B7280" />
                                         <Text style={[styles.datePickerText, !endTime && styles.datePickerPlaceholder]}>
-                                            {formatDateTime(endTime)}
+                                            {formatDateTime(endTime, task.type === 'fixed')}
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -407,8 +457,8 @@ export function EditTaskModal({ visible, onClose, task, userId }: EditTaskModalP
                     onClose={() => setShowStartPicker(false)}
                     onConfirm={(date) => setStartTime(date)}
                     initialDate={startTime || undefined}
-                    mode="datetime"
-                    title="Select Start Date & Time"
+                    mode={task.type === 'fixed' ? 'time' : 'datetime'}
+                    title={task.type === 'fixed' ? 'Select Start Time' : 'Select Start Date & Time'}
                 />
 
                 <CustomDateTimePicker
@@ -416,8 +466,8 @@ export function EditTaskModal({ visible, onClose, task, userId }: EditTaskModalP
                     onClose={() => setShowEndPicker(false)}
                     onConfirm={(date) => setEndTime(date)}
                     initialDate={endTime || undefined}
-                    mode="datetime"
-                    title="Select End Date & Time"
+                    mode={task.type === 'fixed' ? 'time' : 'datetime'}
+                    title={task.type === 'fixed' ? 'Select End Time' : 'Select End Date & Time'}
                 />
             </KeyboardAvoidingView>
         </Modal>

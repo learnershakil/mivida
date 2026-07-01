@@ -60,44 +60,48 @@ function TaskScreen({ users, tasks, settings }: TaskScreenProps) {
       return taskTimestamp <= fortyEightHoursFromNow;
    };
 
-   // Helper to check if completed/cancelled task is within last 48 hours
+   // Helper to check if a terminal (cancelled/failed) task is within the last 48 hours
    const isWithinLast48Hours = (task: Task): boolean => {
-      const completedAt = (task as any).completedAt || (task as any).cancelledAt || task.updatedAt;
-      if (!completedAt) return true; // Show if no timestamp
-      return completedAt >= fortyEightHoursAgo;
+      const at = task.completedAt || task.cancelledAt || task.failedAt || task.updatedAt;
+      if (!at) return true; // Show if no timestamp
+      return at >= fortyEightHoursAgo;
    };
 
-   // Helper to check if task is within last 16 hours (for completed tasks)
+   // Helper to check if a COMPLETED task is within the last 16 hours ("Completed Today").
+   // Uses the real completed_at column (falls back to updated_at for pre-v14 rows).
    const isWithinLast16Hours = (task: Task): boolean => {
-      const completedAt = (task as any).completedAt || (task as any).cancelledAt || task.updatedAt;
-      if (!completedAt) return true; // Show if no timestamp
-      return completedAt >= sixteenHoursAgo;
+      const at = task.completedAt || task.updatedAt;
+      if (!at) return true; // Show if no timestamp
+      return at >= sixteenHoursAgo;
    };
+
+   // A task is in a terminal non-completed state (user-cancelled or auto-failed)
+   const isTerminalNonComplete = (t: Task): boolean => t.isCancelled === true || t.status === 'failed';
 
    // Filter tasks by type - hide fixed tasks in holiday mode, only show next 48 hours
    // Also exclude cancelled tasks from main lists
    const customTasks = tasks?.filter(t =>
       t.type === 'custom' &&
       !t.isCompleted &&
-      !(t as any).isCancelled &&
+      !isTerminalNonComplete(t) &&
       !t.deletedAt &&
       isWithin48Hours(t)
    ) || [];
    const fixedTasks = isHolidayMode ? [] : (tasks?.filter(t =>
       t.type === 'fixed' &&
       !t.isCompleted &&
-      !(t as any).isCancelled &&
+      !isTerminalNonComplete(t) &&
       !t.deletedAt &&
       isWithin48Hours(t)
    ) || []);
-   const alertTasks = tasks?.filter(t => t.type === 'alert' && !t.isCompleted && !(t as any).isCancelled && !t.deletedAt) || [];
-   const activeTasks = tasks?.filter(t => t.isActive && !(t as any).isCancelled && !t.deletedAt) || [];
-   // Only show completed tasks from last 16 hours, and cancelled from last 48 hours
+   const alertTasks = tasks?.filter(t => t.type === 'alert' && !t.isCompleted && !isTerminalNonComplete(t) && !t.deletedAt) || [];
+   const activeTasks = tasks?.filter(t => t.isActive && !isTerminalNonComplete(t) && !t.deletedAt) || [];
+   // Completed tasks from last 16 hours; cancelled/failed from last 48 hours
    const completedTasks = tasks?.filter(t => t.isCompleted && !t.deletedAt && isWithinLast16Hours(t)) || [];
-   const cancelledTasks = tasks?.filter(t => (t as any).isCancelled && !t.deletedAt && isWithinLast48Hours(t)) || [];
+   const cancelledTasks = tasks?.filter(t => isTerminalNonComplete(t) && !t.deletedAt && isWithinLast48Hours(t)) || [];
 
    // All tasks for calendar view (no 48-hour filter)
-   const allTasksForCalendar = tasks?.filter(t => !t.deletedAt && !t.isCompleted && !(t as any).isCancelled) || [];
+   const allTasksForCalendar = tasks?.filter(t => !t.deletedAt && !t.isCompleted && !isTerminalNonComplete(t)) || [];
 
    // Handle alert task deletion
    const handleDeleteAlert = async (task: Task) => {

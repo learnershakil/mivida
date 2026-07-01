@@ -28,6 +28,7 @@ export interface CreateTaskParams {
   type: 'fixed' | 'custom' | 'alert';
   priority?: 'normal' | 'important' | 'urgent';
   assignedPersons?: string[];
+  contactId?: string;
   startTime?: Date;
   endTime?: Date;
   scheduledDate?: Date;
@@ -56,6 +57,7 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
     type,
     priority = 'normal',
     assignedPersons = [],
+    contactId,
     startTime,
     endTime,
     scheduledDate,
@@ -73,6 +75,7 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
       record.expectedDurationMinutes = expectedDurationMinutes;
       record.type = type;
       record.priority = priority;
+      record.contactId = contactId;
       (record as any)._raw.assigned_persons = JSON.stringify(assignedPersons);
       record.startTime = startTime?.getTime();
       record.endTime = endTime?.getTime();
@@ -80,6 +83,8 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
       record.isCompleted = false;
       record.completionPercent = 0;
       record.totalElapsedSeconds = 0;
+      record.status = 'pending';
+      record.isTimeOnly = type === 'fixed'; // fixed tasks are scheduled by time-of-day only
       record.scheduledDate = scheduledDate?.getTime();
       record.scheduledTime = scheduledTime?.getTime();
       // Alert-specific fields
@@ -297,6 +302,9 @@ export async function updateTaskProgress(
         record.isCompleted = true;
         record.isActive = false;
         record.timerStartedAt = undefined;
+        record.completedAt = Date.now();
+        record.status = 'completed';
+        if (remark) record.completionRemark = remark; // persist the completion remark (AUDIT §4)
       }
     });
   });
@@ -352,6 +360,7 @@ export async function cancelTask(task: Task, userId: string, reason?: string): P
       record.cancelledAt = now;
       record.cancelReason = reason || 'No reason provided';
       record.isActive = false;
+      record.status = 'cancelled';
     });
   });
 
@@ -420,6 +429,8 @@ export async function completeTask(task: Task, userId: string): Promise<void> {
       record.isCompleted = true;
       record.isActive = false;
       record.completionPercent = 100;
+      record.completedAt = Date.now();
+      record.status = 'completed';
     });
   });
 
@@ -503,6 +514,8 @@ export async function updateDelegatedTaskStatus(
       if (status === 'completed') {
         record.isCompleted = true;
         record.completionPercent = 100;
+        record.completedAt = Date.now();
+        record.status = 'completed';
       }
     });
   });
@@ -649,6 +662,7 @@ export interface UpdateTaskParams {
   expectedDurationMinutes?: number;
   priority?: 'normal' | 'important' | 'urgent';
   assignedPersons?: string[];
+  contactId?: string;
   startTime?: Date;
   endTime?: Date;
   alertType?: 'timeout' | 'interval';
@@ -671,6 +685,7 @@ export async function updateTask(
       if (params.assignedPersons !== undefined) {
         (record as any)._raw.assigned_persons = JSON.stringify(params.assignedPersons);
       }
+      if (params.contactId !== undefined) record.contactId = params.contactId;
       if (params.startTime !== undefined) record.startTime = params.startTime?.getTime();
       if (params.endTime !== undefined) record.endTime = params.endTime?.getTime();
       if (params.alertType !== undefined) record.alertType = params.alertType;
@@ -680,10 +695,10 @@ export async function updateTask(
   });
 
   await emitEvent({
-    eventType: 'TASK_UPDATED',
+    eventType: EventTypes.TASK_UPDATED,
     entityType: 'task',
     entityId: task.id,
-    payload: params,
+    payload: params as Record<string, unknown>,
     userId,
   });
 
@@ -725,6 +740,8 @@ export async function triggerAlertTask(task: Task, userId: string): Promise<void
         record.isAlertActive = false;
         record.isCompleted = true;
         record.completionPercent = 100;
+        record.completedAt = Date.now();
+        record.status = 'completed';
       }
     });
   });

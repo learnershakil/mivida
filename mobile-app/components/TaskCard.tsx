@@ -662,7 +662,7 @@ const TaskCard = ({ task, userId, variant = 'default' }: TaskCardProps) => {
                                         <Text style={modalStyles.detailLabel}> Schedule</Text>
                                     </View>
                                     <Text style={modalStyles.detailValue}>
-                                        {formatDate(task.startTime)} - {formatDate(task.endTime)}
+                                        {formatDate(task.startTime ? new Date(task.startTime) : null)} - {formatDate(task.endTime ? new Date(task.endTime) : null)}
                                     </Text>
                                 </View>
                             )}
@@ -946,7 +946,7 @@ const TaskCard = ({ task, userId, variant = 'default' }: TaskCardProps) => {
 
                         {/* Cancel Task Button */}
                         <TouchableOpacity
-                            onPress={handleCancelTask}
+                            onPress={handleCancel}
                             style={[modalStyles.saveButton, { backgroundColor: '#FEE2E2', marginTop: 12 }]}
                         >
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

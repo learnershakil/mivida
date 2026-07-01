@@ -96,18 +96,32 @@ export async function POST(request: Request) {
       };
     }
 
-    // Store the daily coding log
+    // Store the daily coding log. Upsert on the (userId, date, project, language) unique key so repeated
+    // syncs update the day's row instead of inserting duplicates (fixes AUDIT §7). Full WakaTime rework
+    // (API-key auth, encrypted creds) lands in slice 3.7.
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const now = BigInt(Date.now());
 
-    const log = await prisma.codingLog.create({
-      data: {
+    const log = await prisma.codingLog.upsert({
+      where: {
+        userId_date_project_language: {
+          userId: user.id,
+          date: BigInt(today.getTime()),
+          project: stats.project,
+          language: stats.languages,
+        },
+      },
+      update: { duration: stats.duration, updatedAt: now },
+      create: {
         userId: user.id,
         date: BigInt(today.getTime()),
         duration: stats.duration,
         project: stats.project,
-        language: stats.languages
-      }
+        language: stats.languages,
+        createdAt: now,
+        updatedAt: now,
+      },
     });
 
     // Convert BigInt for JSON

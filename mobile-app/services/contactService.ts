@@ -1,12 +1,17 @@
+import { Q } from '@nozbe/watermelondb';
 import { database } from '../database';
 import Contact from '../database/models/Contact';
 
 class ContactService {
   /**
-   * Fetch all contacts for a user
+   * Fetch all non-deleted contacts for a user (AUDIT §4.7: getAll previously ignored userId).
    */
   async getAll(userId: string): Promise<Contact[]> {
-    return await database.get<Contact>('contacts').query().fetch();
+    const rows = await database
+      .get<Contact>('contacts')
+      .query(Q.where('user_id', userId), Q.where('deleted_at', null))
+      .fetch();
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**

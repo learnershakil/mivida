@@ -1,21 +1,26 @@
-// Aiven uses a self-signed CA; disable Node TLS rejection in dev
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
-
 import { Pool } from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@prisma/client'
 
-const connectionString = `${process.env.DATABASE_URL}`
+// Aiven presents a self-signed CA. Verify it properly when DATABASE_CA_CERT is provided (the secure path);
+// otherwise fall back to an UNVERIFIED-but-encrypted TLS connection SCOPED TO THIS POOL ONLY.
+//
+// This is a deliberate improvement over the previous `process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'`, which
+// disabled certificate verification process-wide — including outbound HTTPS to Google, R2, and WakaTime.
+const ca = process.env.DATABASE_CA_CERT
+const ssl = ca ? { ca } : { rejectUnauthorized: false }
 
-const pool = new Pool({
-  connectionString,
-  ssl: true,
-})
+// Strip `sslmode` from the URL so our explicit `ssl` config is authoritative — otherwise pg derives its own
+// TLS settings from the connection string and rejects Aiven's self-signed CA.
+const connectionString = `${process.env.DATABASE_URL}`
+  .replace(/([?&])sslmode=[^&]*/i, '$1')
+  .replace(/[?&]$/, '')
+
+const pool = new Pool({ connectionString, ssl })
 const adapter = new PrismaPg(pool)
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 
-export const prisma =
-  globalForPrisma.prisma || new PrismaClient({ adapter })
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
