@@ -46,6 +46,14 @@ All notable changes on branch `feat/backend-foundation` (Phases 1–3). Dates ar
 - **Google Calendar (#6)** — `lib/google.ts`: OAuth (exchange/refresh) with AES-256-GCM token encryption
   at rest + `events.insert/patch/delete`; `/api/w/google/oauth/{start,callback}`.
 - **Cleanup (#8)** — deleted dead `socket.ts`/`background.ts`; removed the orphaned settings stack screen.
+- **Web control panel (#1, #2)** — session-gated pages: Categories (master-list CRUD per §4.5), Contacts
+  (list/create), Tasks + Finance read views, and an Insights dashboard (Burn Rate, Mood, WakaTime, Task
+  Velocity). `/api/w/categories` (+`[id]`) and `/api/w/contacts`; `lib/serialize.ts`; Nav + PageShell.
+- **Cron additions** — WakaTime daily-fetch (`lib/wakatime.ts`, shared with the route) and Google Calendar
+  reconciliation (`lib/calendarSync.ts`: insert/patch/delete + `googleEventId`).
+- **Mood score10 (#5)** — schema v16; raw 1-10 score in its own column, not the note.
+- **DB backup (#6)** — `services/dbBackup.ts`: per-day event-log JSONL snapshot on launch (Guardrail 2).
+- **Secrets** — gitignore `mobile-app/.env`.
 
 ### Verification (final)
 - Mobile: `tsc --noEmit` **0 errors**; `jest` **43/43**.
