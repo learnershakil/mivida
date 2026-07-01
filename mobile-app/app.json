@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Productivity Logger",
+    "slug": "ProductivityLogger",
+    "scheme": "productivitylogger",
+    "version": "1.0.0",
+    "plugins": ["./plugins/withWatermelonDB", "./plugins/withNotifee", "expo-router"],
+    "android": {
+      "package": "com.productivitylogger.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      }
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
