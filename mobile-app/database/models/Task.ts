@@ -35,8 +35,12 @@ export default class Task extends Model {
   @field('type') type!: 'fixed' | 'custom' | 'alert';
   @field('priority') priority!: 'normal' | 'important' | 'urgent';
   @json('assigned_persons', sanitizeAssignedPersons) assignedPersons!: string[];
+  @field('contact_id') contactId?: string;
+  @date('start_date') startDate?: number;
+  @date('end_date') endDate?: number;
   @date('start_time') startTime?: number;
   @date('end_time') endTime?: number;
+  @field('completion_remark') completionRemark?: string;
 
   // Current execution state
   @field('is_active') isActive!: boolean; // Timer currently running

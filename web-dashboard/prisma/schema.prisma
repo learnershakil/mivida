@@ -1,0 +1,83 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  xHttpKey           String   @unique // Hardcoded auth key for mobile requests
+  name               String?
+  avatarUrl          String?
+  passcodeHash       String?  // Vault passcode
+  
+  // WakaTime Credentials
+  wakatimeUsername   String?
+  wakatimePassword   String?  // Symmetrically encrypted in DB
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  settings           Setting?
+  contacts           Contact[]
+  tasks              Task[]
+  // Additional one-to-many relations for other models could be added here
+}
+
+model Setting {
+  id                                String   @id @default(uuid())
+  userId                            String   @unique
+  user                              User     @relation(fields: [userId], references: [id])
+  
+  lastSyncTimestamp                 BigInt?
+  focusLockdownMode                 String   @default("Normal")
+  focusAllowIncomingCalls           Boolean  @default(true)
+  dayMode                           String   @default("Weekday")
+  fatigueScreenTimeThresholdHours   Int?
+  fatigueStepsThreshold             Int?
+  
+  updatedAt                         DateTime @updatedAt
+}
+
+model Contact {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  name      String
+  email     String?
+  phone     String?
+  socials   Json?
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  
+  tasks     Task[]
+}
+
+model Task {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id])
+  title             String
+  description       String?
+  category          String?
+  type              String    // 'fixed' or 'custom'
+  
+  startDate         BigInt?  
+  endDate           BigInt?
+  startTime         BigInt?
+  endTime           BigInt?
+  
+  isCompleted       Boolean   @default(false)
+  completionRemark  String?
+  
+  contactId         String?
+  contact           Contact?  @relation(fields: [contactId], references: [id])
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+}

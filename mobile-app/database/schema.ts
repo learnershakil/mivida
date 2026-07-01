@@ -1,6 +1,6 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export const schema = appSchema({
   version: SCHEMA_VERSION,
@@ -62,12 +62,34 @@ export const schema = appSchema({
         { name: 'timezone', type: 'string' },
         { name: 'vault_passcode_hash', type: 'string', isOptional: true },
         { name: 'vault_auto_lock_minutes', type: 'number' },
+        { name: 'last_sync_timestamp', type: 'number', isOptional: true },
+        { name: 'focus_lockdown_mode', type: 'string', isOptional: true },
+        { name: 'focus_allow_incoming_calls', type: 'boolean', isOptional: true },
+        { name: 'day_mode', type: 'string', isOptional: true },
+        { name: 'fatigue_screen_time_threshold_hours', type: 'number', isOptional: true },
+        { name: 'fatigue_steps_threshold', type: 'number', isOptional: true },
         { name: 'fixed_tasks_template', type: 'string' }, // JSON string
         { name: 'mood_tracker_enabled', type: 'boolean', isOptional: true }, // Mood tracking every 45 mins
         { name: 'mood_tracker_interval_minutes', type: 'number', isOptional: true }, // Default 45 minutes
         { name: 'user_id', type: 'string', isIndexed: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    // ============================================
+    // CONTACTS - User's contacts for delegation
+    // ============================================
+    tableSchema({
+      name: 'contacts',
+      columns: [
+        { name: 'name', type: 'string' },
+        { name: 'email', type: 'string', isOptional: true },
+        { name: 'phone', type: 'string', isOptional: true },
+        { name: 'socials', type: 'string', isOptional: true }, // JSON string
+        { name: 'user_id', type: 'string', isIndexed: true },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true },
       ],
     }),
     // ============================================
@@ -84,8 +106,12 @@ export const schema = appSchema({
         { name: 'type', type: 'string', isIndexed: true }, // 'fixed', 'custom', 'alert'
         { name: 'priority', type: 'string' }, // 'normal', 'important', 'urgent'
         { name: 'assigned_persons', type: 'string', isOptional: true }, // JSON array of person names
+        { name: 'contact_id', type: 'string', isOptional: true, isIndexed: true },
+        { name: 'start_date', type: 'number', isOptional: true },
+        { name: 'end_date', type: 'number', isOptional: true },
         { name: 'start_time', type: 'number', isOptional: true }, // Scheduled start datetime
         { name: 'end_time', type: 'number', isOptional: true }, // Scheduled end datetime
+        { name: 'completion_remark', type: 'string', isOptional: true },
         { name: 'is_active', type: 'boolean', isIndexed: true }, // Currently running timer
         { name: 'is_completed', type: 'boolean', isIndexed: true },
         { name: 'completion_percent', type: 'number' },

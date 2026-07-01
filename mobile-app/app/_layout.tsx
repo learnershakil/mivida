@@ -6,6 +6,7 @@ import notifee, { EventType } from '@notifee/react-native';
 import { database } from '../database'
 import { LockdownOverlay } from '../components/LockdownOverlay'
 import DeadManPrompt from '../components/DeadManPrompt'
+import { GlobalToast } from '../components/Toast'
 import { initializeUser } from '../services/userService'
 import { notificationService } from '../services/notifications'
 import { deadManService } from '../services/deadMan'
@@ -144,6 +145,7 @@ export default function Layout() {
       {/* Full-screen overlays */}
       <LockdownOverlay />
       {userId && <DeadManPrompt userId={userId} />}
+      <GlobalToast />
 
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />

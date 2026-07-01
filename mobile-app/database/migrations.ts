@@ -130,5 +130,44 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    // Migration from v11 to v12: Add Contacts table, Sync/Focus fields to Settings, new fields to Tasks
+    {
+      toVersion: 12,
+      steps: [
+        addColumns({
+          table: 'settings',
+          columns: [
+            { name: 'last_sync_timestamp', type: 'number', isOptional: true },
+            { name: 'focus_lockdown_mode', type: 'string', isOptional: true },
+            { name: 'focus_allow_incoming_calls', type: 'boolean', isOptional: true },
+            { name: 'day_mode', type: 'string', isOptional: true },
+            { name: 'fatigue_screen_time_threshold_hours', type: 'number', isOptional: true },
+            { name: 'fatigue_steps_threshold', type: 'number', isOptional: true },
+          ],
+        }),
+        addColumns({
+          table: 'tasks',
+          columns: [
+            { name: 'contact_id', type: 'string', isOptional: true, isIndexed: true },
+            { name: 'start_date', type: 'number', isOptional: true },
+            { name: 'end_date', type: 'number', isOptional: true },
+            { name: 'completion_remark', type: 'string', isOptional: true },
+          ],
+        }),
+        createTable({
+          name: 'contacts',
+          columns: [
+            { name: 'name', type: 'string' },
+            { name: 'email', type: 'string', isOptional: true },
+            { name: 'phone', type: 'string', isOptional: true },
+            { name: 'socials', type: 'string', isOptional: true }, // JSON string
+            { name: 'user_id', type: 'string', isIndexed: true },
+            { name: 'created_at', type: 'number' },
+            { name: 'updated_at', type: 'number' },
+            { name: 'deleted_at', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

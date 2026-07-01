@@ -1,6 +1,47 @@
+import React, { useRef } from 'react';
 import { Tabs } from 'expo-router';
-import { View } from 'react-native';
+import { View, Animated, Pressable } from 'react-native';
 import { Home, Wallet, LayoutDashboard, Music, User } from 'lucide-react-native'; 
+import { SyncService } from '../../services/syncService';
+import { useToastStore } from '../../store/toastStore';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+function SyncTabButton(props: any) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const { showToast } = useToastStore();
+
+  const handlePressIn = (e: any) => {
+    Animated.spring(scale, { toValue: 0.8, useNativeDriver: true }).start();
+    if (props.onPressIn) props.onPressIn(e);
+  };
+  
+  const handlePressOut = (e: any) => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+    if (props.onPressOut) props.onPressOut(e);
+  };
+
+  const handleLongPress = async () => {
+    try {
+       showToast('Syncing with web dashboard...', 'info');
+       await SyncService.sync();
+       showToast('Sync completed successfully!', 'success');
+    } catch (e) {
+       showToast('Sync failed', 'error');
+    }
+  };
+
+  return (
+    <AnimatedPressable
+      {...props}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onLongPress={handleLongPress}
+      delayLongPress={1500}
+      style={[props.style, { transform: [{ scale }] }]}
+    />
+  );
+}
 
 export default function TabLayout() {
   return (
@@ -49,6 +90,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
+          tabBarButton: (props) => <SyncTabButton {...props} />,
           tabBarIcon: ({ focused }) => (
             <View className={`p-3 mt-7 rounded-full ${focused ? 'bg-white/20' : ''}`}>
               <LayoutDashboard size={24} color={focused ? "#FFD465" : "#8E8E93"} />

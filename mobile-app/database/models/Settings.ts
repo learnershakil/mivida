@@ -57,6 +57,18 @@ export default class Settings extends Model {
   @field('mood_tracker_enabled') moodTrackerEnabled?: boolean;
   @field('mood_tracker_interval_minutes') moodTrackerIntervalMinutes?: number; // Default: 45 minutes
 
+  // === Sync Settings ===
+  @date('last_sync_timestamp') lastSyncTimestamp?: number;
+
+  // === New Focus Lockdown Settings ===
+  @field('focus_lockdown_mode') focusLockdownMode?: string;
+  @field('focus_allow_incoming_calls') focusAllowIncomingCalls?: boolean;
+  @field('day_mode') dayMode?: string;
+
+  // === Fatigue Matrix Settings ===
+  @field('fatigue_screen_time_threshold_hours') fatigueScreenTimeThresholdHours?: number;
+  @field('fatigue_steps_threshold') fatigueStepsThreshold?: number;
+
   // === User Reference ===
   @field('user_id') userId!: string;
 
