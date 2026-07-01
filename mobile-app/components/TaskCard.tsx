@@ -21,6 +21,7 @@ import { startTask, pauseTask, updateTaskProgress, deleteTask, cancelTask } from
 import { notificationService } from '../services/notifications';
 import { getCurrentUser } from '../services/userService';
 import { getEventsForEntity } from '../services/eventLogger';
+import { lockdownService } from '../services/lockdown';
 import { EditTaskModal } from './EditTaskModal';
 
 interface TaskCardProps {
@@ -72,7 +73,9 @@ const TaskCard = ({ task, userId, variant = 'default' }: TaskCardProps) => {
     const [showEditModal, setShowEditModal] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showCompleteRemarkModal, setShowCompleteRemarkModal] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
+    const [completeRemark, setCompleteRemark] = useState('');
     const [partialPercent, setPartialPercent] = useState(task.completionPercent || 0);
     const [partialRemark, setPartialRemark] = useState('');
     const [pauseRemark, setPauseRemark] = useState('');
@@ -252,6 +255,13 @@ const TaskCard = ({ task, userId, variant = 'default' }: TaskCardProps) => {
     };
 
     const handleComplete = async () => {
+        if (task.type === 'custom') {
+            setCompleteRemark('');
+            setShowCompleteRemarkModal(true);
+            return;
+        }
+
+        // Fixed routines complete directly
         Alert.alert(
             'Complete Task',
             'Mark this task as 100% complete?',
@@ -278,6 +288,30 @@ const TaskCard = ({ task, userId, variant = 'default' }: TaskCardProps) => {
                 },
             ]
         );
+    };
+
+    const handleCustomCompleteWithRemark = async () => {
+        if (!completeRemark.trim()) {
+            Alert.alert('Remark Required', 'Please enter a completion remark to finish this custom task.');
+            return;
+        }
+        
+        try {
+            await updateTaskProgress(task, 100, userId, completeRemark.trim());
+            setShowCompleteRemarkModal(false);
+            try {
+                await notificationService.sendNotification(
+                    'Task Completed! 🎉',
+                    `${task.title} - Great job!`,
+                    'informational'
+                );
+            } catch (e) {
+                console.log('[TaskCard] Notification error:', e);
+            }
+        } catch (error) {
+            console.error('Failed to complete custom task:', error);
+            Alert.alert('Error', 'Failed to complete task');
+        }
     };
 
     // Single tap - show detail modal
@@ -332,7 +366,11 @@ const TaskCard = ({ task, userId, variant = 'default' }: TaskCardProps) => {
         );
     };
 
-    const handleCancelTask = () => {
+    const handleCancel = async () => {
+        if (lockdownService.isStrictLockdownActive()) {
+            Alert.alert('Action Disabled', 'You cannot skip tasks during a strict focus session.');
+            return;
+        }
         setCancelReason('');
         setShowCancelModal(true);
     };
@@ -551,12 +589,26 @@ const TaskCard = ({ task, userId, variant = 'default' }: TaskCardProps) => {
                             {/* Header */}
                             <View style={modalStyles.header}>
                                 <Text style={modalStyles.title}>Task Details</Text>
-                                <TouchableOpacity
-                                    onPress={() => setShowDetailModal(false)}
-                                    style={modalStyles.closeButton}
-                                >
-                                    <X size={20} color="black" />
-                                </TouchableOpacity>
+                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            if (lockdownService.isStrictLockdownActive()) {
+                                                Alert.alert('Action Disabled', 'You cannot edit tasks during a strict focus session.');
+                                                return;
+                                            }
+                                            setShowEditModal(true);
+                                        }}
+                                        className="h-10 w-10 bg-gray-100 rounded-full items-center justify-center"
+                                    >
+                                        <Pencil size={20} color="black" />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => setShowDetailModal(false)}
+                                        style={modalStyles.closeButton}
+                                    >
+                                        <X size={20} color="black" />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
 
                             {/* Task Title & Priority */}

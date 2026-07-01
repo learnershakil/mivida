@@ -50,6 +50,7 @@ function TaskScreen({ users, tasks, settings }: TaskScreenProps) {
    const now = Date.now();
    const fortyEightHoursFromNow = now + (48 * 60 * 60 * 1000);
    const fortyEightHoursAgo = now - (48 * 60 * 60 * 1000);
+   const sixteenHoursAgo = now - (16 * 60 * 60 * 1000);
 
    // Helper to check if task is within next 48 hours (for home screen)
    const isWithin48Hours = (task: Task): boolean => {
@@ -61,9 +62,16 @@ function TaskScreen({ users, tasks, settings }: TaskScreenProps) {
 
    // Helper to check if completed/cancelled task is within last 48 hours
    const isWithinLast48Hours = (task: Task): boolean => {
-      const completedAt = (task as any).completedAt || (task as any).cancelledAt;
+      const completedAt = (task as any).completedAt || (task as any).cancelledAt || task.updatedAt;
       if (!completedAt) return true; // Show if no timestamp
       return completedAt >= fortyEightHoursAgo;
+   };
+
+   // Helper to check if task is within last 16 hours (for completed tasks)
+   const isWithinLast16Hours = (task: Task): boolean => {
+      const completedAt = (task as any).completedAt || (task as any).cancelledAt || task.updatedAt;
+      if (!completedAt) return true; // Show if no timestamp
+      return completedAt >= sixteenHoursAgo;
    };
 
    // Filter tasks by type - hide fixed tasks in holiday mode, only show next 48 hours
@@ -84,8 +92,8 @@ function TaskScreen({ users, tasks, settings }: TaskScreenProps) {
    ) || []);
    const alertTasks = tasks?.filter(t => t.type === 'alert' && !t.isCompleted && !(t as any).isCancelled && !t.deletedAt) || [];
    const activeTasks = tasks?.filter(t => t.isActive && !(t as any).isCancelled && !t.deletedAt) || [];
-   // Only show completed/cancelled tasks from last 48 hours
-   const completedTasks = tasks?.filter(t => t.isCompleted && !t.deletedAt && isWithinLast48Hours(t)) || [];
+   // Only show completed tasks from last 16 hours, and cancelled from last 48 hours
+   const completedTasks = tasks?.filter(t => t.isCompleted && !t.deletedAt && isWithinLast16Hours(t)) || [];
    const cancelledTasks = tasks?.filter(t => (t as any).isCancelled && !t.deletedAt && isWithinLast48Hours(t)) || [];
 
    // All tasks for calendar view (no 48-hour filter)

@@ -23,6 +23,7 @@ model User {
   settings           Setting?
   contacts           Contact[]
   tasks              Task[]
+  codingLogs         CodingLog[]
   // Additional one-to-many relations for other models could be added here
 }
 
@@ -80,4 +81,18 @@ model Task {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
+}
+
+model CodingLog {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  date      BigInt
+  duration  Int       // total seconds
+  project   String?
+  language  String?
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 }

@@ -13,6 +13,9 @@
 
 import { AppState, AppStateStatus, Linking } from 'react-native';
 import { emitEvent, EventTypes } from './eventLogger';
+import { LockTaskService } from './lockTaskService';
+import { database } from '../database';
+import Settings from '../database/models/Settings';
 
 type LockdownStatus = {
   isActive: boolean;
@@ -33,6 +36,7 @@ class LockdownService {
   private userId: string | null = null;
   private lockdownId: string | null = null;
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+  private strictness: string = 'normal';
 
   /**
    * Start a focus lockdown session
@@ -49,6 +53,19 @@ class LockdownService {
     this.endTime = Date.now() + this.totalDuration;
     this.breakAttempts = 0;
     this.lockdownId = `lockdown_${Date.now()}`;
+
+    // Read lockdown settings
+    const settings = await database.get<Settings>('settings').query().fetch();
+    const userSettings = settings[0];
+    if (userSettings) {
+      this.strictness = userSettings.lockdownStrictness || 'normal';
+      if (this.strictness === 'extreme') {
+        const enabled = await LockTaskService.enableExtremeFocus();
+        if (!enabled) {
+          console.warn('[Lockdown] Failed to enable extreme focus');
+        }
+      }
+    }
 
     // Emit start event
     await emitEvent({
@@ -104,6 +121,13 @@ class LockdownService {
     if (state === 'background' || state === 'inactive') {
       this.breakAttempts++;
 
+      // Penalty: ensure at least 10 minutes remain
+      const tenMinutesMs = 10 * 60 * 1000;
+      if (this.endTime && this.endTime < Date.now() + tenMinutesMs) {
+         this.endTime = Date.now() + tenMinutesMs;
+         this.totalDuration = Math.max(this.totalDuration, tenMinutesMs);
+      }
+
       await emitEvent({
         eventType: EventTypes.FOCUS_BREAK_ATTEMPTED,
         entityType: 'user',
@@ -113,6 +137,7 @@ class LockdownService {
           attemptNumber: this.breakAttempts,
           remainingMs: this.endTime ? Math.max(0, this.endTime - Date.now()) : 0,
           attemptTime: Date.now(),
+          penaltyApplied: true
         },
         userId: this.userId,
       });
@@ -163,6 +188,8 @@ class LockdownService {
    * Cleanup resources after lockdown ends
    */
   private cleanup(): void {
+    LockTaskService.disableExtremeFocus().catch(console.error);
+
     this.isActive = false;
     this.endTime = null;
     this.totalDuration = 0;
@@ -201,6 +228,13 @@ class LockdownService {
       totalDurationMs: this.totalDuration,
       breakAttempts: this.breakAttempts,
     };
+  }
+
+  /**
+   * Check if strict lockdown is active
+   */
+  isStrictLockdownActive(): boolean {
+    return this.isActive && (this.strictness === 'strict' || this.strictness === 'extreme');
   }
 
   /**

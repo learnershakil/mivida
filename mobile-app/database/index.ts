@@ -14,6 +14,7 @@ import EventLog from './models/EventLog';
 import Settings from './models/Settings';
 import MusicTrack from './models/MusicTrack';
 import MusicCategory from './models/MusicCategory';
+import CodingLog from './models/CodingLog';
 import Contact from './models/Contact';
 
 // Detect if running in Expo Go (no native modules available)
@@ -45,6 +46,7 @@ export const database = new Database({
     EventLog,
     MusicTrack,
     MusicCategory,
+    CodingLog,
     Contact,
   ],
 });

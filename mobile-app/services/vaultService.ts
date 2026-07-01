@@ -20,6 +20,7 @@ import { database } from '../database';
 import VaultMedia, { VaultMediaType } from '../database/models/VaultMedia';
 import Settings from '../database/models/Settings';
 import { emitEvent, EventTypes } from './eventLogger';
+import { vaultEncryptionService } from './vaultEncryptionService';
 
 // Vault storage directory
 const VAULT_DIR = `${FileSystem.documentDirectory}vault/`;
@@ -87,7 +88,7 @@ export async function setupVault(passcode: string, userId: string): Promise<void
     throw new Error('Passcode must be at least 4 digits');
   }
 
-  const hash = hashPasscode(passcode);
+  const hash = await vaultEncryptionService.setPasscode(passcode);
   let settings = await getSettings(userId);
 
   await database.write(async () => {
@@ -144,8 +145,7 @@ export async function verifyPasscode(passcode: string, userId: string): Promise<
     return false;
   }
 
-  const inputHash = hashPasscode(passcode);
-  const isValid = inputHash === storedHash;
+  const isValid = await vaultEncryptionService.verifyPasscode(passcode, storedHash);
 
   await emitEvent({
     eventType: isValid ? EventTypes.VAULT_OPENED : EventTypes.VAULT_CLOSED,
@@ -179,7 +179,7 @@ export async function changePasscode(
     throw new Error('New passcode must be at least 4 digits');
   }
 
-  const hash = hashPasscode(newPasscode);
+  const hash = await vaultEncryptionService.setPasscode(newPasscode);
   const settings = await getSettings(userId);
 
   if (settings) {
@@ -210,12 +210,14 @@ export async function changePasscode(
  */
 export async function addNote(params: AddNoteParams): Promise<VaultMedia> {
   const { title, content, userId } = params;
+  const encryptedContent = await vaultEncryptionService.encrypt(content);
+  const encryptedTitle = title ? await vaultEncryptionService.encrypt(title) : undefined;
 
   const note = await database.write(async () => {
     return await database.get<VaultMedia>('vault_media').create((record) => {
       record.mediaType = 'note';
-      record.title = title;
-      record.content = content;
+      record.title = encryptedTitle;
+      record.content = encryptedContent;
       record.userId = userId;
     });
   });
@@ -233,11 +235,13 @@ export async function updateNote(
   userId: string
 ): Promise<void> {
   const note = await database.get<VaultMedia>('vault_media').find(noteId);
+  const encryptedContent = await vaultEncryptionService.encrypt(content);
+  const encryptedTitle = title ? await vaultEncryptionService.encrypt(title) : undefined;
 
   await database.write(async () => {
     await note.update((record) => {
-      record.title = title;
-      record.content = content;
+      record.title = encryptedTitle;
+      record.content = encryptedContent;
     });
   });
 }
@@ -507,22 +511,7 @@ export async function resetVault(userId: string, clearContent: boolean = false):
   });
 }
 
-/**
- * Simple passcode hash (use bcrypt in production)
- */
-function hashPasscode(passcode: string): string {
-  let hash = 0;
-  const salt = 'productivitylogger_vault_salt';
-  const saltedPasscode = salt + passcode;
 
-  for (let i = 0; i < saltedPasscode.length; i++) {
-    const char = saltedPasscode.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
-  }
-
-  return hash.toString(16);
-}
 
 // Default export with all methods
 const vaultService = {

@@ -9,9 +9,20 @@ import DeadManPrompt from '../components/DeadManPrompt'
 import { GlobalToast } from '../components/Toast'
 import { initializeUser } from '../services/userService'
 import { notificationService } from '../services/notifications'
+import { AppState, Platform, Alert } from 'react-native';
+import { handleAppStateChange } from '../services/appStateService';
+import { CustomAlertProvider } from '../components/CustomAlertProvider';
+import { uiAlertService } from '../services/uiAlertService';
+
+// Override global React Native Alert to use our custom modal UI
+const originalAlert = Alert.alert;
+Alert.alert = (title, message, buttons, options) => {
+  uiAlertService.alert(title, message, buttons, options);
+};
 import { deadManService } from '../services/deadMan'
 import { alertService } from '../services/alertService'
 import { soundService } from '../services/soundService'
+import { runTaskMaintenance } from '../services/taskMaintenance'
 import { appEvents, AppEvents } from '../services/appEvents'
 import '../global.css'
 
@@ -86,6 +97,9 @@ export default function Layout() {
         // Initialize sound service
         await soundService.init(user.id);
 
+        // Run task maintenance (auto-marking and renewals)
+        await runTaskMaintenance(user.id);
+
         // Initialize alert service and reschedule any active alerts
         await alertService.init(user.id);
         await alertService.rescheduleActiveAlerts();
@@ -142,15 +156,31 @@ export default function Layout() {
 
   return (
     <DatabaseProvider database={database}>
-      {/* Full-screen overlays */}
-      <LockdownOverlay />
-      {userId && <DeadManPrompt userId={userId} />}
-      <GlobalToast />
+      <CustomAlertProvider>
+        {/* Full-screen overlays */}
+        <LockdownOverlay />
+        {userId && <DeadManPrompt userId={userId} />}
+        <GlobalToast />
 
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(tabs)" />
-      </Stack>
+        <Stack
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: '#1C1C1E',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+            contentStyle: {
+              backgroundColor: '#000000',
+            },
+            animation: 'fade_from_bottom',
+          }}
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
+        </Stack>
+      </CustomAlertProvider>
     </DatabaseProvider>
   );
 }

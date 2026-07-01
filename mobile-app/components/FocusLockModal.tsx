@@ -13,9 +13,12 @@ import {
     Modal,
     TextInput,
     Alert,
+    Platform,
 } from 'react-native';
-import { X, Lock, Target, Clock } from 'lucide-react-native';
+import { X, Lock, Target, Clock, Calendar as CalendarIcon } from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { lockdownService } from '../services/lockdown';
+import { createTask } from '../services/taskService';
 
 interface FocusLockModalProps {
     visible: boolean;
@@ -34,6 +37,9 @@ export function FocusLockModal({ visible, onClose, userId }: FocusLockModalProps
     const [selectedDuration, setSelectedDuration] = useState<number | null>(30);
     const [customDuration, setCustomDuration] = useState('');
     const [showCustom, setShowCustom] = useState(false);
+    const [isScheduling, setIsScheduling] = useState(false);
+    const [scheduleDate, setScheduleDate] = useState(new Date());
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
     const handleStartLockdown = async () => {
         const duration = showCustom ? parseInt(customDuration, 10) : selectedDuration;
@@ -44,11 +50,22 @@ export function FocusLockModal({ visible, onClose, userId }: FocusLockModalProps
         }
 
         try {
-            await lockdownService.startLockdown(duration, userId);
+            if (isScheduling) {
+                // Schedule as an alert task
+                await createTask({
+                    title: `Scheduled Focus (${duration}m)`,
+                    description: `Focus lockdown session for ${duration} minutes.`,
+                    type: 'alert',
+                    startTime: scheduleDate.getTime(),
+                }, userId);
+                Alert.alert('Scheduled', `Focus session scheduled for ${scheduleDate.toLocaleTimeString()}`);
+            } else {
+                await lockdownService.startLockdown(duration, userId);
+            }
             onClose();
         } catch (error) {
-            console.error('Failed to start lockdown:', error);
-            Alert.alert('Error', 'Failed to start focus session');
+            console.error('Failed to start/schedule lockdown:', error);
+            Alert.alert('Error', 'Failed to start/schedule focus session');
         }
     };
 
@@ -141,13 +158,60 @@ export function FocusLockModal({ visible, onClose, userId }: FocusLockModalProps
                         </View>
                     )}
 
+                    {/* Scheduling Toggle */}
+                    <TouchableOpacity
+                        onPress={() => setIsScheduling(!isScheduling)}
+                        className="flex-row items-center gap-2 mb-4 p-3 bg-gray-50 rounded-xl"
+                    >
+                        <CalendarIcon size={20} color={isScheduling ? '#1E1E1E' : '#6B7280'} />
+                        <Text className={`font-medium ${isScheduling ? 'text-[#1E1E1E]' : 'text-gray-500'}`}>
+                            {isScheduling ? 'Schedule for later' : 'Start immediately'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {isScheduling && (
+                        <View className="mb-6">
+                            <Text className="text-gray-500 font-medium mb-3">Start Time</Text>
+                            {Platform.OS === 'ios' ? (
+                                <DateTimePicker
+                                    value={scheduleDate}
+                                    mode="time"
+                                    display="spinner"
+                                    onChange={(_, date) => date && setScheduleDate(date)}
+                                />
+                            ) : (
+                                <TouchableOpacity
+                                    onPress={() => setShowDatePicker(true)}
+                                    className="bg-gray-100 p-4 rounded-xl flex-row justify-between items-center"
+                                >
+                                    <Text className="text-base font-medium">{scheduleDate.toLocaleTimeString()}</Text>
+                                    <Clock size={20} color="#6B7280" />
+                                </TouchableOpacity>
+                            )}
+                            
+                            {showDatePicker && Platform.OS === 'android' && (
+                                <DateTimePicker
+                                    value={scheduleDate}
+                                    mode="time"
+                                    display="default"
+                                    onChange={(_, date) => {
+                                        setShowDatePicker(false);
+                                        if (date) setScheduleDate(date);
+                                    }}
+                                />
+                            )}
+                        </View>
+                    )}
+
                     {/* Start Button */}
                     <TouchableOpacity
                         onPress={handleStartLockdown}
                         className="bg-[#1E1E1E] py-5 rounded-full flex-row items-center justify-center gap-2"
                     >
                         <Target size={20} color="#C0F67F" />
-                        <Text className="text-white font-bold text-lg">Start Focus Session</Text>
+                        <Text className="text-white font-bold text-lg">
+                            {isScheduling ? 'Schedule Focus' : 'Start Focus Session'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>

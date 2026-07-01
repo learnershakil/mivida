@@ -18,6 +18,7 @@ import Task from '../database/models/Task';
 import { emitEvent, EventTypes, getEventsForEntity } from './eventLogger';
 import { alertService } from './alertService';
 import { notificationService } from './notifications';
+import { syncTaskToCalendar } from './calendarService';
 
 export interface CreateTaskParams {
   title: string;
@@ -118,6 +119,9 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
   // Schedule notification for alert tasks
   if (type === 'alert') {
     await alertService.scheduleAlert(task);
+  } else if (type === 'custom' && startTime && endTime) {
+    // Sync to calendar
+    await syncTaskToCalendar(task);
   }
 
   // Schedule start time notification for custom/fixed tasks
@@ -371,6 +375,10 @@ export async function cancelTask(task: Task, userId: string, reason?: string): P
  * Delete a task (soft delete)
  */
 export async function deleteTask(task: Task, userId: string): Promise<void> {
+  if (task.type === 'fixed') {
+    throw new Error('Fixed routines cannot be deleted, only completed or edited.');
+  }
+
   const now = Date.now();
 
   // If task is active, pause it first
@@ -678,6 +686,10 @@ export async function updateTask(
     payload: params,
     userId,
   });
+
+  if (task.type === 'custom' && task.startTime && task.endTime) {
+    await syncTaskToCalendar(task);
+  }
 
   return task;
 }

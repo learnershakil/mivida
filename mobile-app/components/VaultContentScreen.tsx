@@ -20,9 +20,37 @@ import {
     Alert,
     Dimensions,
     FlatList,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
+import { RichEditor, RichToolbar, actions } from 'react-native-pell-rich-editor';
 import VaultMedia from '../database/models/VaultMedia';
 import * as vaultService from '../services/vaultService';
+import { vaultEncryptionService } from '../services/vaultEncryptionService';
+
+// Component to handle async decryption of note content
+const DecryptedNote = ({ encryptedContent }: { encryptedContent: string }) => {
+    const [content, setContent] = useState('Decrypting...');
+
+    useEffect(() => {
+        if (!encryptedContent) {
+            setContent('');
+            return;
+        }
+        vaultEncryptionService.decrypt(encryptedContent)
+            .then(setContent)
+            .catch(() => setContent('Decryption failed'));
+    }, [encryptedContent]);
+
+    // Strip HTML tags for preview
+    const previewText = content.replace(/<[^>]*>?/gm, '');
+
+    return (
+        <Text className="text-yellow-400 text-xs" numberOfLines={4}>
+            📝 {previewText || 'Empty note'}
+        </Text>
+    );
+};
 
 interface VaultContentScreenProps {
     visible: boolean;
@@ -40,6 +68,7 @@ export default function VaultContentScreen({ visible, onClose, userId }: VaultCo
     const [showAddNote, setShowAddNote] = useState(false);
     const [noteText, setNoteText] = useState('');
     const [activeTab, setActiveTab] = useState<'all' | 'images' | 'videos' | 'notes'>('all');
+    const richText = React.useRef<RichEditor>(null);
 
     const loadMedia = async () => {
         setLoading(true);
@@ -75,18 +104,15 @@ export default function VaultContentScreen({ visible, onClose, userId }: VaultCo
     };
 
     const handleAddNote = async () => {
-        if (!noteText.trim()) {
+        if (!noteText.trim() && noteText !== '<p><br></p>') {
             Alert.alert('Empty Note', 'Please enter some text');
             return;
         }
 
         try {
-            // Notes are stored as media with a special "note" type marker in the note field
-            await vaultService.addMedia({
-                uri: 'note://',
-                mediaType: 'image', // Using image type but URI indicates it's a note
-                filename: `note_${Date.now()}`,
-                note: noteText.trim(),
+            await vaultService.addNote({
+                title: 'Secret Note',
+                content: noteText.trim(),
                 userId,
             });
             setNoteText('');
@@ -125,14 +151,14 @@ export default function VaultContentScreen({ visible, onClose, userId }: VaultCo
 
     const filteredMedia = media.filter((item) => {
         if (activeTab === 'all') return true;
-        if (activeTab === 'notes') return item.uri.startsWith('note://');
+        if (activeTab === 'notes') return item.mediaType === 'note' || item.uri.startsWith('note://');
         if (activeTab === 'images') return item.mediaType === 'image' && !item.uri.startsWith('note://');
         if (activeTab === 'videos') return item.mediaType === 'video';
         return true;
     });
 
     const renderMediaItem = ({ item }: { item: VaultMedia }) => {
-        const isNote = item.uri.startsWith('note://');
+        const isNote = item.mediaType === 'note' || item.uri.startsWith('note://');
 
         return (
             <TouchableOpacity
@@ -141,10 +167,14 @@ export default function VaultContentScreen({ visible, onClose, userId }: VaultCo
                 className="p-1"
             >
                 {isNote ? (
-                    <View className="flex-1 bg-yellow-500/20 rounded-lg p-2 justify-center">
-                        <Text className="text-yellow-400 text-xs" numberOfLines={4}>
-                            📝 {item.note}
-                        </Text>
+                    <View className="flex-1 bg-yellow-500/20 rounded-lg p-2 justify-center overflow-hidden">
+                        {item.content ? (
+                            <DecryptedNote encryptedContent={item.content} />
+                        ) : (
+                            <Text className="text-yellow-400 text-xs" numberOfLines={4}>
+                                📝 {item.note || 'Empty'}
+                            </Text>
+                        )}
                     </View>
                 ) : item.mediaType === 'video' ? (
                     <View className="flex-1 bg-gray-800 rounded-lg justify-center items-center">
@@ -232,39 +262,56 @@ export default function VaultContentScreen({ visible, onClose, userId }: VaultCo
                     )}
 
                     {/* Add Note Modal */}
-                    <Modal visible={showAddNote} animationType="fade" transparent>
-                        <View className="flex-1 bg-black/80 justify-center p-6">
-                            <View className="bg-gray-900 rounded-2xl p-6">
-                                <Text className="text-xl font-bold text-white mb-4">Add Secret Note</Text>
-                                <TextInput
-                                    className="bg-gray-800 text-white p-4 rounded-xl mb-4"
-                                    placeholder="Enter your secret note..."
-                                    placeholderTextColor="#6b7280"
-                                    value={noteText}
-                                    onChangeText={setNoteText}
-                                    multiline
-                                    numberOfLines={6}
-                                    textAlignVertical="top"
-                                />
-                                <View className="flex-row">
-                                    <TouchableOpacity
-                                        className="bg-gray-700 px-4 py-3 rounded-xl flex-1 mr-2"
-                                        onPress={() => {
-                                            setShowAddNote(false);
-                                            setNoteText('');
-                                        }}
-                                    >
-                                        <Text className="text-white text-center font-semibold">Cancel</Text>
+                    <Modal visible={showAddNote} animationType="slide" transparent>
+                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1 bg-black/90 pt-16">
+                            <View className="flex-1 bg-gray-900 rounded-t-3xl overflow-hidden">
+                                <View className="flex-row justify-between p-4 border-b border-gray-800">
+                                    <Text className="text-xl font-bold text-white">New Secret Note</Text>
+                                    <TouchableOpacity onPress={() => setShowAddNote(false)}>
+                                        <Text className="text-gray-400">Cancel</Text>
                                     </TouchableOpacity>
+                                </View>
+                                
+                                <View className="flex-1">
+                                    <RichEditor
+                                        ref={richText}
+                                        onChange={setNoteText}
+                                        placeholder="Type your secret note here..."
+                                        initialContentHTML={noteText}
+                                        editorStyle={{
+                                            backgroundColor: '#111827',
+                                            color: 'white',
+                                            placeholderColor: '#6b7280',
+                                        }}
+                                        containerStyle={{ flex: 1, backgroundColor: '#111827' }}
+                                    />
+                                </View>
+                                
+                                <RichToolbar
+                                    editor={richText}
+                                    actions={[
+                                        actions.setBold,
+                                        actions.setItalic,
+                                        actions.setUnderline,
+                                        actions.heading1,
+                                        actions.insertBulletsList,
+                                        actions.insertOrderedList,
+                                    ]}
+                                    style={{ backgroundColor: '#1F2937' }}
+                                    iconTint="#9CA3AF"
+                                    selectedIconTint="#60A5FA"
+                                />
+
+                                <View className="p-4 bg-gray-900 pb-8">
                                     <TouchableOpacity
-                                        className="bg-yellow-600 px-4 py-3 rounded-xl flex-1"
+                                        className="bg-yellow-600 py-4 rounded-xl items-center"
                                         onPress={handleAddNote}
                                     >
-                                        <Text className="text-white text-center font-semibold">Save Note</Text>
+                                        <Text className="text-white font-bold text-lg">Save Secure Note</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
-                        </View>
+                        </KeyboardAvoidingView>
                     </Modal>
 
                     {/* Selected Media Viewer */}
@@ -280,11 +327,17 @@ export default function VaultContentScreen({ visible, onClose, userId }: VaultCo
                                     </TouchableOpacity>
 
                                     <View className="flex-1 justify-center p-4">
-                                        {selectedMedia.uri.startsWith('note://') ? (
+                                        {(selectedMedia.mediaType === 'note' || selectedMedia.uri.startsWith('note://')) ? (
                                             <View className="bg-yellow-500/20 p-6 rounded-2xl">
-                                                <Text className="text-yellow-400 text-lg">
-                                                    {selectedMedia.note}
-                                                </Text>
+                                                <ScrollView style={{ maxHeight: '80%' }}>
+                                                    {selectedMedia.content ? (
+                                                        <DecryptedNote encryptedContent={selectedMedia.content} />
+                                                    ) : (
+                                                        <Text className="text-yellow-400 text-lg">
+                                                            {selectedMedia.note}
+                                                        </Text>
+                                                    )}
+                                                </ScrollView>
                                                 <Text className="text-gray-500 text-sm mt-4">
                                                     Created: {new Date(selectedMedia.createdAt).toLocaleString()}
                                                 </Text>

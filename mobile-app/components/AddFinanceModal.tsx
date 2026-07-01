@@ -198,7 +198,10 @@ export function AddFinanceModal({ visible, onClose, userId }: AddFinanceModalPro
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    onPress={() => setIsScheduled(true)}
+                                    onPress={() => {
+                                        setIsScheduled(true);
+                                        if (!scheduledDate) setScheduledDate(new Date());
+                                    }}
                                     style={[
                                         styles.toggleButton,
                                         isScheduled && styles.scheduledActive

@@ -169,5 +169,24 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    // Migration from v12 to v13: Add coding_logs table
+    {
+      toVersion: 13,
+      steps: [
+        createTable({
+          name: 'coding_logs',
+          columns: [
+            { name: 'date', type: 'number', isIndexed: true },
+            { name: 'duration', type: 'number' },
+            { name: 'project', type: 'string', isOptional: true },
+            { name: 'language', type: 'string', isOptional: true },
+            { name: 'user_id', type: 'string', isIndexed: true },
+            { name: 'created_at', type: 'number' },
+            { name: 'updated_at', type: 'number' },
+            { name: 'deleted_at', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

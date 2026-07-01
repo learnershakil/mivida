@@ -33,7 +33,7 @@ const PRESET_DURATIONS = [
     { label: '30 min', value: 30 },
 ];
 
-const POST_BREAK_LOCK_MINUTES = 5; // Lock for 5 minutes after break
+const POST_BREAK_LOCK_MINUTES = 10; // Lock for 10 minutes after break
 
 export function BreakLockModal({ visible, onClose, userId }: BreakLockModalProps) {
     const [selectedDuration, setSelectedDuration] = useState<number | null>(10);
@@ -73,7 +73,7 @@ export function BreakLockModal({ visible, onClose, userId }: BreakLockModalProps
                     // Cancel the ongoing notification
                     await notifee.cancelAllNotifications();
 
-                    // Start focus lockdown for 5 minutes
+                    // Start focus lockdown for 10 minutes
                     await lockdownService.startLockdown(POST_BREAK_LOCK_MINUTES, userId);
                     onClose();
                 } catch (error) {

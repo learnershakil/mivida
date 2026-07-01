@@ -4,7 +4,12 @@
     "slug": "ProductivityLogger",
     "scheme": "productivitylogger",
     "version": "1.0.0",
-    "plugins": ["./plugins/withWatermelonDB", "./plugins/withNotifee", "expo-router"],
+    "plugins": [
+      "./plugins/withWatermelonDB",
+      "./plugins/withNotifee",
+      "expo-router",
+      "expo-secure-store"
+    ],
     "android": {
       "package": "com.productivitylogger.app",
       "adaptiveIcon": {

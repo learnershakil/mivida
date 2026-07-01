@@ -1,12 +1,22 @@
 import { synchronize } from '@nozbe/watermelondb/sync';
 import { database } from '../database';
 
-const SYNC_API_URL = 'http://10.34.66.155:3000/api/sync'; // Adjust for production
+const SYNC_API_URL = 'http://10.67.217.166:3000/api/sync'; // Adjust for production
 const HTTP_KEY = 'hardcoded-dev-key'; // This should be securely stored
 
 export class SyncService {
   static async sync() {
     try {
+      console.log('[SyncService] Triggering WakaTime sync...');
+      try {
+        await fetch('http://10.67.217.166:3000/api/wakatime/sync', {
+          method: 'POST',
+          headers: { 'x-http-key': HTTP_KEY },
+        });
+      } catch (err) {
+        console.warn('[SyncService] WakaTime sync trigger failed', err);
+      }
+
       console.log('[SyncService] Starting synchronization...');
       await synchronize({
         database,
@@ -38,7 +48,7 @@ export class SyncService {
             throw new Error(`Sync push failed: ${response.statusText}`);
           }
         },
-        migrationsEnabledAtVersion: 1,
+        migrationsEnabledAtVersion: 4,
       });
       console.log('[SyncService] Synchronization complete.');
       return true;

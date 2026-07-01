@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Edit2, Heart, Moon, Sun, TrendingUp, Users, BookOpen } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
@@ -16,10 +16,12 @@ import VaultContentScreen from '../../components/VaultContentScreen';
 import DailyReflectionModal from '../../components/DailyReflectionModal';
 import { EditProfileModal } from '../../components/EditProfileModal';
 import NotificationHistoryModal from '../../components/NotificationHistoryModal';
+import ContactModal from '../../components/ContactModal';
 import VaultAccessModal from '../../components/VaultAccess';
-import { getAnalyticsSummary, AnalyticsSummary } from '../../services/analyticsService';
+import { getAnalyticsSummary, getWeeklyAnalytics, AnalyticsSummary } from '../../services/analyticsService';
 import { initializeUser } from '../../services/userService';
 import { appEvents, AppEvents } from '../../services/appEvents';
+import { LineChart } from 'react-native-chart-kit';
 
 interface ProfileScreenProps {
    users: User[];
@@ -37,8 +39,10 @@ function ProfileScreen({ users, tasks, moodLogs, events }: ProfileScreenProps) {
    const [showReflection, setShowReflection] = useState(false);
    const [showEditProfile, setShowEditProfile] = useState(false);
    const [showNotifications, setShowNotifications] = useState(false);
+   const [showContacts, setShowContacts] = useState(false);
    const [isLoading, setIsLoading] = useState(true);
    const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
+   const [weeklyAnalytics, setWeeklyAnalytics] = useState<{ date: string; data: AnalyticsSummary }[]>([]);
 
    const user = users?.[0];
    const userId = user?.id || 'local_user';
@@ -61,6 +65,9 @@ function ProfileScreen({ users, tasks, moodLogs, events }: ProfileScreenProps) {
             if (userId && typeof getAnalyticsSummary === 'function') {
                const summary = await getAnalyticsSummary(userId);
                setAnalytics(summary);
+               
+               const weekly = await getWeeklyAnalytics(userId);
+               setWeeklyAnalytics(weekly.reverse()); // Chronological order
             }
          } catch (error) {
             console.error('Error loading profile data:', error);
@@ -116,6 +123,24 @@ function ProfileScreen({ users, tasks, moodLogs, events }: ProfileScreenProps) {
                   </TouchableOpacity>
                   <Text className="text-3xl font-bold text-primary">{user?.name || 'Shakil Ahmad'}</Text>
                   <Text className="text-secondary font-medium">Time Nahi H Tere Pass!!!</Text>
+
+                  {/* Quick Actions */}
+                  <View className="flex-row gap-4 mt-6">
+                      <TouchableOpacity 
+                          onPress={() => setShowContacts(true)}
+                          className="bg-[#2C2C2E] px-5 py-3 rounded-full flex-row items-center shadow-sm"
+                      >
+                          <Users size={16} color="#4AC3FF" />
+                          <Text className="text-white font-bold ml-2">Contacts</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                          onPress={() => setShowDelegation(true)}
+                          className="bg-[#2C2C2E] px-5 py-3 rounded-full flex-row items-center shadow-sm"
+                      >
+                          <BookOpen size={16} color="#C0F67F" />
+                          <Text className="text-white font-bold ml-2">Delegation</Text>
+                      </TouchableOpacity>
+                  </View>
                </View>
 
                {/* --- MASONRY GRID LAYOUT --- */}
@@ -212,6 +237,48 @@ function ProfileScreen({ users, tasks, moodLogs, events }: ProfileScreenProps) {
 
                </View>
 
+               {/* --- ANALYTICS CHARTS --- */}
+               {weeklyAnalytics.length > 0 && (
+                  <View className="px-5 mt-6 mb-4">
+                     <Text className="text-xl font-bold mb-4 text-[#1E1E1E]">Productivity vs Mood</Text>
+                     <View className="bg-white p-4 rounded-[30px] shadow-sm items-center">
+                        <LineChart
+                           data={{
+                              labels: weeklyAnalytics.map(w => w.date),
+                              datasets: [
+                                 {
+                                    data: weeklyAnalytics.map(w => w.data.productivityPercent),
+                                    color: (opacity = 1) => `rgba(74, 195, 255, ${opacity})`, // Blue
+                                    strokeWidth: 3
+                                 },
+                                 {
+                                    data: weeklyAnalytics.map(w => (w.data.avgMoodScore || 3) * 20), // Scale mood 1-5 to 20-100
+                                    color: (opacity = 1) => `rgba(255, 212, 101, ${opacity})`, // Yellow
+                                    strokeWidth: 3
+                                 }
+                              ],
+                              legend: ["Productivity %", "Mood Level"]
+                           }}
+                           width={Dimensions.get('window').width - 70}
+                           height={220}
+                           yAxisSuffix="%"
+                           chartConfig={{
+                              backgroundColor: '#ffffff',
+                              backgroundGradientFrom: '#ffffff',
+                              backgroundGradientTo: '#ffffff',
+                              decimalPlaces: 0,
+                              color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                              labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                              style: { borderRadius: 16 },
+                              propsForDots: { r: "4", strokeWidth: "2", stroke: "#fff" }
+                           }}
+                           bezier
+                           style={{ marginVertical: 8, borderRadius: 16 }}
+                        />
+                     </View>
+                  </View>
+               )}
+
             </ScrollView>
 
             {/* Mood Log Modal */}
@@ -273,6 +340,13 @@ function ProfileScreen({ users, tasks, moodLogs, events }: ProfileScreenProps) {
             <NotificationHistoryModal
                visible={showNotifications}
                onClose={() => setShowNotifications(false)}
+               userId={userId}
+            />
+
+            {/* Contacts Modal */}
+            <ContactModal
+               visible={showContacts}
+               onClose={() => setShowContacts(false)}
                userId={userId}
             />
          </SafeAreaView>

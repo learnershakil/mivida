@@ -1,10 +1,26 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 export const schema = appSchema({
   version: SCHEMA_VERSION,
   tables: [
+    // ============================================
+    // CODING_LOGS - WakaTime coding stats
+    // ============================================
+    tableSchema({
+      name: 'coding_logs',
+      columns: [
+        { name: 'date', type: 'number', isIndexed: true },
+        { name: 'duration', type: 'number' },
+        { name: 'project', type: 'string', isOptional: true },
+        { name: 'language', type: 'string', isOptional: true },
+        { name: 'user_id', type: 'string', isIndexed: true },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true },
+      ],
+    }),
     // ============================================
     // EVENT_LOGS - Core immutable event store
     // All user actions are logged here as events

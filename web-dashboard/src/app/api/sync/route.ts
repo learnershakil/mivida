@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // In a real app, this would be highly complex mapping WatermelonDB tables to Prisma tables
 // For this single-user "mi vida" app, we map the incoming changes to Prisma creates/updates/deletes.
@@ -14,13 +12,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Missing x-http-key' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.upsert({
       where: { xHttpKey: httpKey },
+      update: {
+        wakatimeUsername: process.env.WAKATIME_USERNAME || undefined,
+        wakatimePassword: process.env.WAKATIME_PASSWORD || undefined,
+      },
+      create: {
+        xHttpKey: httpKey,
+        name: 'My Dashboard User',
+        wakatimeUsername: process.env.WAKATIME_USERNAME || undefined,
+        wakatimePassword: process.env.WAKATIME_PASSWORD || undefined,
+      },
     });
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized: Invalid key' }, { status: 401 });
-    }
 
     const body = await req.json();
     const { changes, lastPulledAt } = body;
@@ -126,16 +130,8 @@ export async function POST(req: NextRequest) {
 
     const currentTimestamp = Date.now();
 
-    // Fetch changes from Web Dashboard since lastPulledAt to send back to mobile
-    // (This is simplified. Real sync involves querying updatedAt > lastPulledAt)
-    const serverChanges = {
-      tasks: { created: [], updated: [], deleted: [] },
-      contacts: { created: [], updated: [], deleted: [] },
-      settings: { created: [], updated: [], deleted: [] },
-    };
-
     return NextResponse.json({
-      changes: serverChanges,
+      success: true,
       timestamp: currentTimestamp
     });
   } catch (error) {
@@ -143,3 +139,67 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function GET(req: NextRequest) {
+  try {
+    const httpKey = req.headers.get('x-http-key');
+    
+    if (!httpKey) {
+      return NextResponse.json({ error: 'Unauthorized: Missing x-http-key' }, { status: 401 });
+    }
+
+    const user = await prisma.user.upsert({
+      where: { xHttpKey: httpKey },
+      update: {
+        wakatimeUsername: process.env.WAKATIME_USERNAME || undefined,
+        wakatimePassword: process.env.WAKATIME_PASSWORD || undefined,
+      },
+      create: {
+        xHttpKey: httpKey,
+        name: 'My Dashboard User',
+        wakatimeUsername: process.env.WAKATIME_USERNAME || undefined,
+        wakatimePassword: process.env.WAKATIME_PASSWORD || undefined,
+      },
+    });
+
+    const { searchParams } = new URL(req.url);
+    const lastPulledAt = searchParams.get('lastPulledAt');
+    const lastPulledDate = lastPulledAt && lastPulledAt !== '0' ? new Date(parseInt(lastPulledAt)) : new Date(0);
+
+    const newCodingLogs = await prisma.codingLog.findMany({
+      where: {
+        userId: user.id,
+        updatedAt: { gt: lastPulledDate }
+      }
+    });
+
+    const formattedCodingLogs = newCodingLogs.map(log => ({
+      id: log.id,
+      user_id: log.userId,
+      date: Number(log.date),
+      duration: log.duration,
+      project: log.project,
+      language: log.language,
+      created_at: log.createdAt.getTime(),
+      updated_at: log.updatedAt.getTime(),
+    }));
+
+    const serverChanges = {
+      tasks: { created: [], updated: [], deleted: [] },
+      contacts: { created: [], updated: [], deleted: [] },
+      settings: { created: [], updated: [], deleted: [] },
+      coding_logs: { created: formattedCodingLogs, updated: [], deleted: [] }
+    };
+
+    const currentTimestamp = Date.now();
+
+    return NextResponse.json({
+      changes: serverChanges,
+      timestamp: currentTimestamp
+    });
+  } catch (error) {
+    console.error('Sync Pull Error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+

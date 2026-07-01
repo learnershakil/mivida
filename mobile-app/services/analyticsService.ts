@@ -98,6 +98,34 @@ export async function getAnalyticsSummary(
 }
 
 /**
+ * Get weekly analytics data for charts (last 7 days)
+ */
+export async function getWeeklyAnalytics(
+  userId: string
+): Promise<{ date: string; data: AnalyticsSummary }[]> {
+  try {
+    const today = new Date();
+    const results = [];
+    
+    // Get stats for the last 7 days including today
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      
+      const summary = await getAnalyticsSummary(userId, date);
+      results.push({
+        date: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        data: summary,
+      });
+    }
+    return results;
+  } catch (error) {
+    console.error('Error getting weekly analytics:', error);
+    return [];
+  }
+}
+
+/**
  * Get complete daily analytics
  */
 export async function getDailyAnalytics(
