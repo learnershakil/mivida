@@ -227,6 +227,7 @@ model Contact {
   email           String?
   phone           String?
   socials         Json?
+  source          String? // where you met / got the details (free-text)
   createdAt       BigInt
   updatedAt       BigInt
   deletedAt       BigInt?

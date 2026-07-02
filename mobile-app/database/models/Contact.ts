@@ -23,6 +23,7 @@ export default class Contact extends Model {
   @field('email') email?: string;
   @field('phone') phone?: string;
   @json('socials', sanitizeSocials) socials?: any;
+  @field('source') source?: string; // Where you met / got the details (free-text, for future reference)
 
   @field('user_id') userId!: string;
 

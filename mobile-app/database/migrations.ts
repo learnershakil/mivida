@@ -269,5 +269,15 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    // Migration from v18 to v19: contact "source" — where you met / got the details (free-text)
+    {
+      toVersion: 19,
+      steps: [
+        addColumns({
+          table: 'contacts',
+          columns: [{ name: 'source', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
   ],
 });
