@@ -79,10 +79,10 @@ export function sanitizeVaultRow(row: Record<string, unknown>): Record<string, u
     ciphertextRef: typeof row.content === 'string' ? row.content : null, // AES ciphertext for notes
     encTitle: typeof row.title === 'string' ? row.title : null, // encrypted title for notes
     duration: typeof row.duration === 'number' ? row.duration : null,
+    r2Key: typeof row.r2_key === 'string' ? row.r2_key : null, // key of the ENCRYPTED blob in R2
     createdAt: toBigInt(row.created_at) ?? BigInt(Date.now()),
     updatedAt: toBigInt(row.updated_at) ?? BigInt(Date.now()),
     deletedAt: toBigInt(row.deleted_at),
-    // r2Key / encMeta are set by the R2 upload flow, not the sync payload.
   }
 }
 

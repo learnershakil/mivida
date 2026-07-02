@@ -1,6 +1,6 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 export const schema = appSchema({
   version: SCHEMA_VERSION,
@@ -48,6 +48,7 @@ export const schema = appSchema({
       columns: [
         { name: 'name', type: 'string', isOptional: true },
         { name: 'avatar_url', type: 'string', isOptional: true },
+        { name: 'avatar_r2_key', type: 'string', isOptional: true }, // R2 cloud copy of the avatar
         { name: 'passcode', type: 'string', isOptional: true },
         { name: 'is_awake', type: 'boolean' },
         { name: 'last_interaction', type: 'number' }, // timestamp
@@ -236,6 +237,7 @@ export const schema = appSchema({
         { name: 'title', type: 'string', isOptional: true }, // Title for notes/audio
         { name: 'content', type: 'string', isOptional: true }, // Text content for notes
         { name: 'duration', type: 'number', isOptional: true }, // Audio duration in ms
+        { name: 'r2_key', type: 'string', isOptional: true }, // R2 key of the ENCRYPTED blob
         { name: 'user_id', type: 'string', isIndexed: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
@@ -254,6 +256,8 @@ export const schema = appSchema({
         { name: 'file_uri', type: 'string' },
         { name: 'file_name', type: 'string' },
         { name: 'album_art_uri', type: 'string', isOptional: true }, // Custom album art
+        { name: 'r2_key', type: 'string', isOptional: true }, // R2 cloud copy of the audio file
+        { name: 'album_art_r2_key', type: 'string', isOptional: true }, // R2 cloud copy of the art
         { name: 'duration', type: 'number' }, // Duration in seconds
         { name: 'category', type: 'string', isIndexed: true },
         { name: 'is_favorite', type: 'boolean', isIndexed: true },
