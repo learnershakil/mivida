@@ -1,0 +1,23 @@
+{
+  "project_info": {
+    "project_number": "132359572859",
+    "project_id": "mivida-a9715",
+    "storage_bucket": "mivida-a9715.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:132359572859:android:583f964ab406c0cc8241de",
+        "android_client_info": {
+          "package_name": "me.learnershakil.mivida"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        { "current_key": "AIzaSyB4OwCmgeh881_oTrl73wavSWl2rRg4XCk" }
+      ],
+      "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+    }
+  ],
+  "configuration_version": "1"
+}

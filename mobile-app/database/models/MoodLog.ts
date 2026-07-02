@@ -18,6 +18,7 @@ export default class MoodLog extends Model {
   @field('mood') mood!: MoodLevel;
   @field('mood_value') moodValue!: number; // 1-5 for analytics
   @field('level') level!: number; // 1-5 for analytics
+  @field('score10') score10?: number; // raw 1-10 score
   @field('note') note?: string;
   @field('user_id') userId!: string;
 

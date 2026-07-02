@@ -59,6 +59,20 @@ model User {
   sensorStats     SensorStat[]
   insights        Insight[]
   wakatimeCaches  WakatimeCache[]
+  pushTokens      PushToken[]
+}
+
+// FCM device push tokens (server-only; not synced to device via WatermelonDB)
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  platform  String   @default("android")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // mirrors device `users` (projection, NOT auth)
@@ -102,6 +116,10 @@ model Setting {
   vaultAutoLockMinutes       Int     @default(5)
   moodTrackerEnabled         Boolean @default(false)
   moodTrackerIntervalMinutes Int     @default(45)
+  // Insights group. `insights` is the extensible JSON blob; the two flat fatigue columns mirror the
+  // device's `fatigue_*` columns 1:1 so the DMMF sync mapper carries them through automatically.
+  fatigueScreenTimeThresholdHours Float?
+  fatigueStepsThreshold           Int?
   insights                   Json? // { [metric]: { enabled, thresholds… } } — Insights group
   lastSyncTimestamp          BigInt?
   updatedAt                  BigInt
@@ -209,6 +227,7 @@ model Contact {
   email           String?
   phone           String?
   socials         Json?
+  source          String? // where you met / got the details (free-text)
   createdAt       BigInt
   updatedAt       BigInt
   deletedAt       BigInt?
@@ -457,6 +476,7 @@ model SyncState {
   user                User     @relation(fields: [userId], references: [id])
   deviceLastSyncAt    BigInt?
   serverLastAppliedAt DateTime @default(now())
+  lastMoodPingAt      BigInt? // when the cron last sent a mood-check push (gates the interval)
 }
 
 model GoogleAuth {

@@ -42,6 +42,7 @@ export type MoodLevel = keyof typeof MoodLevels;
 export interface MoodEntryParams {
   mood: MoodLevel;
   note?: string;
+  score10?: number; // raw 1-10 score
   userId: string;
 }
 
@@ -68,7 +69,7 @@ export function startMoodTracker(intervalMinutes: number = 45, userId: string): 
 
       await emitEvent({
         eventType: EventTypes.MOOD_LOGGED,
-        entityType: 'mood_tracker',
+        entityType: 'mood',
         entityId: `mood_check_${Date.now()}`,
         payload: {
           action: 'notification_sent',
@@ -117,13 +118,14 @@ export async function initMoodTracker(userId: string): Promise<void> {
  * Log a mood entry
  */
 export async function logMood(params: MoodEntryParams): Promise<MoodLog> {
-  const { mood, note, userId } = params;
+  const { mood, note, score10, userId } = params;
 
   const moodLog = await database.write(async () => {
     return await database.get<MoodLog>('mood_logs').create((record) => {
       record.mood = mood;
       record.moodValue = MoodLevels[mood];
       record.level = MoodLevels[mood];
+      record.score10 = score10;
       record.note = note;
       record.userId = userId;
     });
@@ -214,7 +216,7 @@ export async function getMoodDistribution(
 
   const moods = await database.get<MoodLog>('mood_logs').query(Q.where('user_id', userId)).fetch();
 
-  const filtered = moods.filter((m) => !m.deletedAt && m.createdAt >= startDate.getTime());
+  const filtered = moods.filter((m) => !m.deletedAt && m.createdAt.getTime() >= startDate.getTime());
 
   const distribution: Record<MoodLevel, number> = {
     TERRIBLE: 0,
@@ -271,7 +273,7 @@ export async function deleteMoodEntry(moodId: string, userId: string): Promise<v
 
   await database.write(async () => {
     await mood.update((record) => {
-      record.deletedAt = Date.now();
+      record.deletedAt = new Date();
     });
   });
 

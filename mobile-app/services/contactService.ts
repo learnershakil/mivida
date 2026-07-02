@@ -17,13 +17,14 @@ class ContactService {
   /**
    * Create a new contact
    */
-  async create(data: { name: string; email?: string; phone?: string; socials?: any; userId: string }) {
+  async create(data: { name: string; email?: string; phone?: string; socials?: any; source?: string; userId: string }) {
     return await database.write(async () => {
       return await database.get<Contact>('contacts').create((contact) => {
         contact.name = data.name;
         contact.email = data.email;
         contact.phone = data.phone;
         contact.socials = data.socials;
+        contact.source = data.source;
         contact.userId = data.userId;
       });
     });
@@ -32,7 +33,7 @@ class ContactService {
   /**
    * Update a contact
    */
-  async update(contactId: string, data: Partial<{ name: string; email: string; phone: string; socials: any }>) {
+  async update(contactId: string, data: Partial<{ name: string; email: string; phone: string; socials: any; source: string }>) {
     return await database.write(async () => {
       const contact = await database.get<Contact>('contacts').find(contactId);
       return await contact.update((c) => {
@@ -40,6 +41,7 @@ class ContactService {
         if (data.email !== undefined) c.email = data.email;
         if (data.phone !== undefined) c.phone = data.phone;
         if (data.socials !== undefined) c.socials = data.socials;
+        if (data.source !== undefined) c.source = data.source;
       });
     });
   }

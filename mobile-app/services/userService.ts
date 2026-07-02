@@ -162,6 +162,24 @@ export async function updateProfile(
       record.lastInteraction = Date.now();
     });
   });
+
+  // Cloud copy: push the new avatar to R2 in the background and store the key (syncs to Profile.avatarR2Key).
+  if (updates.avatarUrl && updates.avatarUrl.startsWith('file')) {
+    (async () => {
+      try {
+        const { uploadToR2 } = await import('./uploadService');
+        const key = await uploadToR2(updates.avatarUrl!, 'avatar', 'image/jpeg');
+        await database.write(async () => {
+          await user.update((record) => {
+            record.avatarR2Key = key;
+          });
+        });
+        console.log('[userService] avatar uploaded to R2:', key);
+      } catch (e) {
+        console.warn('[userService] avatar R2 upload failed (kept local)', e);
+      }
+    })();
+  }
 }
 
 /**
@@ -184,6 +202,8 @@ export async function updateSettings(
     vaultAutoLockMinutes: number;
     moodTrackerEnabled: boolean;
     moodTrackerIntervalMinutes: number;
+    fatigueScreenTimeThresholdHours: number;
+    fatigueStepsThreshold: number;
   }>
 ): Promise<void> {
   const changedFields: Record<string, { from: unknown; to: unknown }> = {};
@@ -225,6 +245,10 @@ export async function updateSettings(
         record.moodTrackerEnabled = updates.moodTrackerEnabled;
       if (updates.moodTrackerIntervalMinutes !== undefined)
         record.moodTrackerIntervalMinutes = updates.moodTrackerIntervalMinutes;
+      if (updates.fatigueScreenTimeThresholdHours !== undefined)
+        record.fatigueScreenTimeThresholdHours = updates.fatigueScreenTimeThresholdHours;
+      if (updates.fatigueStepsThreshold !== undefined)
+        record.fatigueStepsThreshold = updates.fatigueStepsThreshold;
     });
   });
 

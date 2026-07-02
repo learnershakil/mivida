@@ -78,7 +78,8 @@ export function MoodLogModal({ visible, onClose, userId }: MoodLogModalProps) {
 
             await logMood({
                 mood: moodLevel,
-                note: note.trim() ? `[Score: ${selectedScore}/10] ${note.trim()}` : `Score: ${selectedScore}/10`,
+                score10: selectedScore, // raw 1-10 stored in its own column now
+                note: note.trim() || undefined,
                 userId,
             });
 

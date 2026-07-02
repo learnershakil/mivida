@@ -19,6 +19,7 @@ import { X, Lock, Target, Clock, Calendar as CalendarIcon } from 'lucide-react-n
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { lockdownService } from '../services/lockdown';
 import { createTask } from '../services/taskService';
+import { focusSchedule } from '../services/focusSchedule';
 
 interface FocusLockModalProps {
     visible: boolean;
@@ -51,14 +52,23 @@ export function FocusLockModal({ visible, onClose, userId }: FocusLockModalProps
 
         try {
             if (isScheduling) {
-                // Schedule as an alert task
+                // Log a reminder task for visibility...
                 await createTask({
                     title: `Scheduled Focus (${duration}m)`,
                     description: `Focus lockdown session for ${duration} minutes.`,
                     type: 'alert',
-                    startTime: scheduleDate.getTime(),
-                }, userId);
-                Alert.alert('Scheduled', `Focus session scheduled for ${scheduleDate.toLocaleTimeString()}`);
+                    startTime: scheduleDate,
+                    userId,
+                });
+                // ...and arm a native exact alarm so the lockdown auto-STARTS at that time even if the
+                // app is closed (§5.3). Falls back to just the reminder if the native module is absent.
+                const armed = await focusSchedule.schedule(scheduleDate.getTime(), duration, 'normal');
+                Alert.alert(
+                    'Scheduled',
+                    armed
+                        ? `Focus will auto-start at ${scheduleDate.toLocaleTimeString()}.`
+                        : `Reminder set for ${scheduleDate.toLocaleTimeString()} (auto-start needs a device build).`,
+                );
             } else {
                 await lockdownService.startLockdown(duration, userId);
             }

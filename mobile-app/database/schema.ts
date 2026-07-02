@@ -1,6 +1,6 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 19;
 
 export const schema = appSchema({
   version: SCHEMA_VERSION,
@@ -48,6 +48,7 @@ export const schema = appSchema({
       columns: [
         { name: 'name', type: 'string', isOptional: true },
         { name: 'avatar_url', type: 'string', isOptional: true },
+        { name: 'avatar_r2_key', type: 'string', isOptional: true }, // R2 cloud copy of the avatar
         { name: 'passcode', type: 'string', isOptional: true },
         { name: 'is_awake', type: 'boolean' },
         { name: 'last_interaction', type: 'number' }, // timestamp
@@ -102,6 +103,7 @@ export const schema = appSchema({
         { name: 'email', type: 'string', isOptional: true },
         { name: 'phone', type: 'string', isOptional: true },
         { name: 'socials', type: 'string', isOptional: true }, // JSON string
+        { name: 'source', type: 'string', isOptional: true }, // Where you met / got the details
         { name: 'user_id', type: 'string', isIndexed: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
@@ -216,6 +218,7 @@ export const schema = appSchema({
         { name: 'mood', type: 'string', isIndexed: true }, // 'TERRIBLE', 'BAD', 'MEH', 'GOOD', 'GREAT'
         { name: 'mood_value', type: 'number' }, // 1-5 for analytics
         { name: 'level', type: 'number' }, // 1-5 for analytics (duplicate for compat)
+        { name: 'score10', type: 'number', isOptional: true }, // raw 1-10 score (no longer stuffed in note)
         { name: 'note', type: 'string', isOptional: true },
         { name: 'user_id', type: 'string', isIndexed: true },
         { name: 'created_at', type: 'number', isIndexed: true },
@@ -235,6 +238,7 @@ export const schema = appSchema({
         { name: 'title', type: 'string', isOptional: true }, // Title for notes/audio
         { name: 'content', type: 'string', isOptional: true }, // Text content for notes
         { name: 'duration', type: 'number', isOptional: true }, // Audio duration in ms
+        { name: 'r2_key', type: 'string', isOptional: true }, // R2 key of the ENCRYPTED blob
         { name: 'user_id', type: 'string', isIndexed: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
@@ -253,12 +257,28 @@ export const schema = appSchema({
         { name: 'file_uri', type: 'string' },
         { name: 'file_name', type: 'string' },
         { name: 'album_art_uri', type: 'string', isOptional: true }, // Custom album art
+        { name: 'r2_key', type: 'string', isOptional: true }, // R2 cloud copy of the audio file
+        { name: 'album_art_r2_key', type: 'string', isOptional: true }, // R2 cloud copy of the art
         { name: 'duration', type: 'number' }, // Duration in seconds
         { name: 'category', type: 'string', isIndexed: true },
         { name: 'is_favorite', type: 'boolean', isIndexed: true },
         { name: 'play_count', type: 'number' },
         { name: 'user_id', type: 'string', isIndexed: true },
         { name: 'created_at', type: 'number', isIndexed: true },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    // ============================================
+    // SENSOR_STATS - Daily pedometer steps (feeds fatigue analytics)
+    // ============================================
+    tableSchema({
+      name: 'sensor_stats',
+      columns: [
+        { name: 'date', type: 'number', isIndexed: true },
+        { name: 'steps', type: 'number' },
+        { name: 'meta', type: 'string', isOptional: true },
+        { name: 'user_id', type: 'string', isIndexed: true },
+        { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
       ],
     }),

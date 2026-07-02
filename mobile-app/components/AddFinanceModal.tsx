@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { X, Plus, Minus, IndianRupee, Tag, FileText, Calendar, Clock, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { addIncome, addExpense } from '../services/financeService';
+import { addIncome, addExpense, scheduleTransaction } from '../services/financeService';
 
 interface AddFinanceModalProps {
     visible: boolean;
@@ -71,36 +71,32 @@ export function AddFinanceModal({ visible, onClose, userId }: AddFinanceModalPro
         setIsSubmitting(true);
 
         try {
-            // Use scheduled date as transaction date if scheduled, otherwise use now
-            const transactionDate = isScheduled && scheduledDate ? scheduledDate : new Date();
-
-            if (transactionType === 'income') {
-                await addIncome({
-                    amount: amountNum,
-                    category: category.trim() || undefined,
-                    source: source.trim() || undefined,
-                    destination: destination.trim() || undefined,
-                    description: description.trim() || undefined,
-                    transactionDate,
-                    userId,
-                });
-            } else {
-                await addExpense({
-                    amount: amountNum,
-                    category: category.trim() || undefined,
-                    source: source.trim() || undefined,
-                    destination: destination.trim() || undefined,
-                    description: description.trim() || undefined,
-                    transactionDate,
-                    userId,
-                });
-            }
+            const base = {
+                amount: amountNum,
+                category: category.trim() || undefined,
+                source: source.trim() || undefined,
+                destination: destination.trim() || undefined,
+                description: description.trim() || undefined,
+                userId,
+            };
 
             if (isScheduled && scheduledDate) {
+                // Real scheduled transaction: NOT counted in the balance until it is triggered on/after
+                // its date by the scheduler (fixes AUDIT §6.2 — it used to post immediately).
+                await scheduleTransaction({
+                    ...base,
+                    type: transactionType === 'income' ? 'INCOME' : 'EXPENSE',
+                    transactionDate: scheduledDate,
+                    scheduledFor: scheduledDate,
+                });
                 Alert.alert(
                     'Transaction Scheduled',
                     `Your ${transactionType} has been scheduled for ${scheduledDate.toLocaleDateString()}`
                 );
+            } else if (transactionType === 'income') {
+                await addIncome({ ...base, transactionDate: new Date() });
+            } else {
+                await addExpense({ ...base, transactionDate: new Date() });
             }
 
             resetForm();
@@ -227,7 +223,7 @@ export function AddFinanceModal({ visible, onClose, userId }: AddFinanceModalPro
                                         onPress={() => setShowDatePicker(true)}
                                         style={styles.datePickerButton}
                                     >
-                                        <Calendar size={20} color="#A855F7" />
+                                        <Calendar size={20} color="#6B7280" />
                                         <Text style={styles.datePickerButtonText}>
                                             {scheduledDate
                                                 ? scheduledDate.toLocaleDateString('en-US', {
@@ -453,7 +449,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#22C55E',
     },
     scheduledActive: {
-        backgroundColor: '#A855F7',
+        backgroundColor: '#1E1E1E',
     },
     toggleText: {
         fontWeight: 'bold',
@@ -474,9 +470,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        backgroundColor: '#F3E8FF',
+        backgroundColor: '#F9FAFB',
         borderWidth: 2,
-        borderColor: '#A855F7',
+        borderColor: '#E5E7EB',
         borderRadius: 16,
         padding: 16,
         marginBottom: 12,
@@ -484,7 +480,7 @@ const styles = StyleSheet.create({
     datePickerButtonText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#7C3AED',
+        color: '#111827',
     },
     datePickerModal: {
         flex: 1,
@@ -513,15 +509,15 @@ const styles = StyleSheet.create({
     datePickerDone: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#A855F7',
+        color: '#065F46',
     },
     selectedDateContainer: {
-        backgroundColor: '#F3E8FF',
+        backgroundColor: '#ECFDF5',
         padding: 12,
         borderRadius: 12,
     },
     selectedDateText: {
-        color: '#7C3AED',
+        color: '#065F46',
         fontWeight: '500',
         textAlign: 'center',
     },

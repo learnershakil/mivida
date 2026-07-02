@@ -221,5 +221,63 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    // Migration from v15 to v16: Add raw 1-10 mood score column
+    {
+      toVersion: 16,
+      steps: [
+        addColumns({
+          table: 'mood_logs',
+          columns: [{ name: 'score10', type: 'number', isOptional: true }],
+        }),
+      ],
+    },
+    // Migration from v16 to v17: Add sensor_stats table (pedometer)
+    {
+      toVersion: 17,
+      steps: [
+        createTable({
+          name: 'sensor_stats',
+          columns: [
+            { name: 'date', type: 'number', isIndexed: true },
+            { name: 'steps', type: 'number' },
+            { name: 'meta', type: 'string', isOptional: true },
+            { name: 'user_id', type: 'string', isIndexed: true },
+            { name: 'created_at', type: 'number' },
+            { name: 'updated_at', type: 'number' },
+          ],
+        }),
+      ],
+    },
+    // Migration from v17 to v18: R2 cloud-copy key columns (avatar, music, vault)
+    {
+      toVersion: 18,
+      steps: [
+        addColumns({
+          table: 'users',
+          columns: [{ name: 'avatar_r2_key', type: 'string', isOptional: true }],
+        }),
+        addColumns({
+          table: 'music_tracks',
+          columns: [
+            { name: 'r2_key', type: 'string', isOptional: true },
+            { name: 'album_art_r2_key', type: 'string', isOptional: true },
+          ],
+        }),
+        addColumns({
+          table: 'vault_media',
+          columns: [{ name: 'r2_key', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
+    // Migration from v18 to v19: contact "source" — where you met / got the details (free-text)
+    {
+      toVersion: 19,
+      steps: [
+        addColumns({
+          table: 'contacts',
+          columns: [{ name: 'source', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
   ],
 });

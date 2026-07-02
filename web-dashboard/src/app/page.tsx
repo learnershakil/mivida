@@ -1,9 +1,16 @@
 import { prisma } from "@/lib/prisma";
+import { getWebSessionUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { Nav } from "@/components/Nav";
 
-// Live data + will be auth-gated; never prerender at build time (would hit the DB).
+// Live data + auth-gated; never prerender at build time (would hit the DB).
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  // Gate the control panel behind the web session (ARCHITECTURE §1).
+  const session = await getWebSessionUser();
+  if (!session) redirect("/login");
+
   const users = await prisma.user.findMany({
     include: {
       profile: true,
@@ -17,7 +24,8 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white p-8 font-sans">
-      <header className="mb-12 border-b border-white/10 pb-6">
+      <div className="max-w-5xl mx-auto"><Nav /></div>
+      <header className="mb-12 border-b border-white/10 pb-6 max-w-5xl mx-auto">
         <h1 className="text-4xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
           mi vida
         </h1>

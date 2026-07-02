@@ -339,7 +339,8 @@ class SoundService {
     description: string;
     isCustom?: boolean;
   }[] {
-    const sounds = this.getAvailableSounds();
+    const sounds: { id: NotificationSoundId; name: string; description: string; isCustom?: boolean }[] =
+      this.getAvailableSounds();
 
     // Add custom sound option
     sounds.push({

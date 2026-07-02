@@ -7,7 +7,10 @@ import { PrismaClient } from '@prisma/client'
 //
 // This is a deliberate improvement over the previous `process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'`, which
 // disabled certificate verification process-wide — including outbound HTTPS to Google, R2, and WakaTime.
-const ca = process.env.DATABASE_CA_CERT
+// Use the CA only if it's a COMPLETE PEM (guards against a truncated/mis-pasted .env value, which would
+// otherwise break TLS entirely). Supports both `\n`-escaped single-line and real multi-line values.
+const rawCa = process.env.DATABASE_CA_CERT?.replace(/\\n/g, '\n')
+const ca = rawCa && rawCa.includes('BEGIN CERTIFICATE') && rawCa.includes('END CERTIFICATE') ? rawCa : undefined
 const ssl = ca ? { ca } : { rejectUnauthorized: false }
 
 // Strip `sslmode` from the URL so our explicit `ssl` config is authoritative — otherwise pg derives its own

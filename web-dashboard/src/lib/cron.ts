@@ -1,0 +1,246 @@
+// Backend cron jobs — the server is the time-authority (ARCHITECTURE §7). Each job mutates Postgres
+// idempotently; the device reconciles on the next sync pull (serverUpdatedAt advances). Invoked by
+// /api/cron behind CRON_SECRET.
+import type { PrismaClient } from '@prisma/client'
+import { shouldAutoFail, shouldRenewFixed, next7Days, fatigueTriggered, dayBucket } from '@/lib/lifecycle'
+import { fetchAndStoreWakatime } from '@/lib/wakatime'
+import { reconcileGoogleCalendar } from '@/lib/calendarSync'
+import { sendToUser } from '@/lib/fcm'
+
+type DB = PrismaClient
+
+export interface CronReport {
+  ranAt: number
+  renewedFixed: number
+  failedCustom: number
+  triggeredFinance: number
+  allocatedInstances: number
+  fatigueTasks: number
+  wakatimeSynced: number
+  calendarCreated: number
+  calendarDeleted: number
+  moodPings: number
+}
+
+/** Fixed-task 5AM renewal — reset completed daily routines. Skipped for users in Holiday day-mode. */
+async function renewFixed(db: DB, now: number): Promise<number> {
+  const holidayUserIds = new Set(
+    (await db.setting.findMany({ where: { taskMode: 'holiday' }, select: { userId: true } })).map(
+      (s) => s.userId,
+    ),
+  )
+  const fixed = await db.task.findMany({
+    where: { type: 'fixed', isCompleted: true, deletedAt: null },
+  })
+  let n = 0
+  for (const t of fixed) {
+    if (holidayUserIds.has(t.userId)) continue
+    if (!shouldRenewFixed(t, now)) continue
+    await db.task.update({
+      where: { id: t.id },
+      data: {
+        isCompleted: false,
+        completionPercent: 0,
+        totalElapsedSeconds: 0,
+        completionRemark: null,
+        completedAt: null,
+        status: 'pending',
+        updatedAt: BigInt(now),
+      },
+    })
+    n++
+  }
+  return n
+}
+
+/** Custom-task 6h fail sweep — distinct `failed` state (not cancelled). */
+async function failExpiredCustom(db: DB, now: number): Promise<number> {
+  const candidates = await db.task.findMany({
+    where: { type: 'custom', isCompleted: false, isCancelled: false, deletedAt: null, endTime: { not: null } },
+  })
+  let n = 0
+  for (const t of candidates) {
+    if (!shouldAutoFail(t, now)) continue
+    await db.task.update({
+      where: { id: t.id },
+      data: { status: 'failed', failedAt: BigInt(now), isActive: false, updatedAt: BigInt(now) },
+    })
+    n++
+  }
+  return n
+}
+
+/** Trigger scheduled finance transactions whose date has arrived. */
+async function triggerScheduledFinance(db: DB, now: number): Promise<number> {
+  const res = await db.financeLog.updateMany({
+    where: { isScheduled: true, isTriggered: false, isCancelled: false, scheduledFor: { lte: BigInt(now) } },
+    data: { isTriggered: true, updatedAt: BigInt(now) },
+  })
+  return res.count
+}
+
+/** Ensure the next 7 days of TaskInstance rows exist for each active fixed task. */
+async function allocateFixedInstances(db: DB, now: number): Promise<number> {
+  const fixed = await db.task.findMany({ where: { type: 'fixed', deletedAt: null } })
+  const days = next7Days(now)
+  let n = 0
+  for (const t of fixed) {
+    for (const date of days) {
+      // Unique (taskId, date) — createMany skipDuplicates makes this idempotent.
+      const created = await db.taskInstance.createMany({
+        data: [
+          {
+            id: `${t.id}:${date}`,
+            userId: t.userId,
+            taskId: t.id,
+            date: BigInt(date),
+            status: 'pending',
+            updatedAt: BigInt(now),
+          },
+        ],
+        skipDuplicates: true,
+      })
+      n += created.count
+    }
+  }
+  return n
+}
+
+/**
+ * Physical Fatigue vs Screen Time: when today's screen time is high AND steps are low, auto-create a
+ * mandatory physical-activity fixed task (once per user per day). Thresholds come from Setting.insights.
+ */
+async function fatigueTrigger(db: DB, now: number): Promise<number> {
+  const day = dayBucket(now)
+  const users = await db.user.findMany({ include: { setting: true } })
+  let n = 0
+  for (const u of users) {
+    const [sensor, usage] = await Promise.all([
+      db.sensorStat.findUnique({ where: { userId_date: { userId: u.id, date: BigInt(day) } } }),
+      db.usageStat.findUnique({ where: { userId_date: { userId: u.id, date: BigInt(day) } } }),
+    ])
+    if (!sensor && !usage) continue // no data collected yet
+
+    const steps = sensor?.steps ?? 0
+    const screenMs = usage ? Number(usage.totalScreenMs) : 0
+    // Prefer the flat fatigue columns synced from the device Insights settings; fall back to the
+    // extensible `insights` JSON, then to sane defaults.
+    const insights = (u.setting?.insights as { fatigue?: { screenTimeHours?: number; steps?: number } }) ?? {}
+    const thr = {
+      screenTimeHours:
+        u.setting?.fatigueScreenTimeThresholdHours ?? insights.fatigue?.screenTimeHours ?? 6,
+      steps: u.setting?.fatigueStepsThreshold ?? insights.fatigue?.steps ?? 1000,
+    }
+    if (!fatigueTriggered(screenMs, steps, thr)) continue
+
+    const created = await db.task.createMany({
+      data: [
+        {
+          id: `fatigue:${u.id}:${day}`, // deterministic → idempotent per day
+          userId: u.id,
+          title: 'Physical activity break',
+          description: 'Auto-created: high screen time and low steps today. Move for a bit.',
+          type: 'fixed',
+          priority: 'important',
+          status: 'pending',
+          isTimeOnly: true,
+          createdAt: BigInt(now),
+          updatedAt: BigInt(now),
+        },
+      ],
+      skipDuplicates: true,
+    })
+    n += created.count
+  }
+  return n
+}
+
+/** Refresh WakaTime coding stats for every user (upsert dedups the day's row). Best-effort. */
+async function syncWakatime(db: DB): Promise<number> {
+  const users = await db.user.findMany({ select: { id: true } })
+  let n = 0
+  for (const u of users) {
+    try {
+      const stats = await fetchAndStoreWakatime(db, u.id)
+      if (stats) n++
+    } catch (err) {
+      console.warn('[cron] wakatime failed for', u.id, err)
+    }
+  }
+  return n
+}
+
+/** Reconcile every connected user's tasks with Google Calendar (best-effort). */
+async function syncCalendar(db: DB): Promise<{ created: number; deleted: number }> {
+  const connected = await db.googleAuth.findMany({ select: { userId: true } })
+  let created = 0
+  let deleted = 0
+  for (const g of connected) {
+    try {
+      const r = await reconcileGoogleCalendar(db, g.userId)
+      created += r.created
+      deleted += r.deleted
+    } catch (err) {
+      console.warn('[cron] calendar reconcile failed for', g.userId, err)
+    }
+  }
+  return { created, deleted }
+}
+
+/**
+ * Mood-check pushes: for each user with the mood tracker enabled, send an FCM ping when at least
+ * moodTrackerIntervalMinutes have elapsed since the last one (marker on SyncState.lastMoodPingAt).
+ * The cron cadence (15 min) bounds the effective granularity.
+ */
+async function sendMoodPings(db: DB, now: number): Promise<number> {
+  const settings = await db.setting.findMany({ where: { moodTrackerEnabled: true } })
+  let n = 0
+  for (const s of settings) {
+    const intervalMs = Math.max(15, s.moodTrackerIntervalMinutes || 45) * 60_000
+    const state = await db.syncState.findUnique({ where: { userId: s.userId } })
+    const last = state?.lastMoodPingAt ? Number(state.lastMoodPingAt) : 0
+    if (now - last < intervalMs) continue
+    try {
+      const delivered = await sendToUser(
+        s.userId,
+        '🎭 How are you feeling?',
+        'Take a second to log your mood.',
+        { action: 'mood_check' },
+      )
+      if (delivered > 0) {
+        await db.syncState.upsert({
+          where: { userId: s.userId },
+          update: { lastMoodPingAt: BigInt(now) },
+          create: { userId: s.userId, lastMoodPingAt: BigInt(now) },
+        })
+        n += delivered
+      }
+    } catch (err) {
+      console.warn('[cron] mood ping failed for', s.userId, err)
+    }
+  }
+  return n
+}
+
+export async function runCron(db: DB, now: number): Promise<CronReport> {
+  const renewedFixed = await renewFixed(db, now)
+  const failedCustom = await failExpiredCustom(db, now)
+  const triggeredFinance = await triggerScheduledFinance(db, now)
+  const allocatedInstances = await allocateFixedInstances(db, now)
+  const fatigueTasks = await fatigueTrigger(db, now)
+  const wakatimeSynced = await syncWakatime(db)
+  const calendar = await syncCalendar(db)
+  const moodPings = await sendMoodPings(db, now)
+  return {
+    ranAt: now,
+    renewedFixed,
+    failedCustom,
+    triggeredFinance,
+    allocatedInstances,
+    fatigueTasks,
+    wakatimeSynced,
+    calendarCreated: calendar.created,
+    calendarDeleted: calendar.deleted,
+    moodPings,
+  }
+}

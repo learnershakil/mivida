@@ -6,6 +6,7 @@ export default class User extends Model {
 
   @field('name') name!: string;
   @field('avatar_url') avatarUrl?: string;
+  @field('avatar_r2_key') avatarR2Key?: string; // R2 cloud copy
   @field('passcode') passcode?: string;
   @field('is_awake') isAwake!: boolean;
   @date('last_interaction') lastInteraction!: number;

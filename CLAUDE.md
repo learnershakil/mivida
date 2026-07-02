@@ -61,8 +61,9 @@ online is purely additive.
    digests, or the `DatabaseBrowser`. On-device vault data must be encrypted and hidden.
 4. **Secrets live in env / secure store only** — WakaTime creds, Google OAuth, R2 keys, the mobile
    `x-http-key`, `DATABASE_URL`. Never commit them; never ship them in the app bundle in plaintext.
-   (Current debt: hardcoded LAN IPs + `hardcoded-dev-key` in `syncService.ts`;
-   `NODE_TLS_REJECT_UNAUTHORIZED='0'` in `web-dashboard/src/lib/prisma.ts`.)
+   (Resolved in Phase 3: the hardcoded LAN IP + `hardcoded-dev-key` are gone — the client reads
+   `EXPO_PUBLIC_API_URL` + a secure-store key; `NODE_TLS_REJECT_UNAUTHORIZED='0'` is removed, SSL is scoped
+   to the DB pool with CA-cert support.)
 5. **UI parity.** Keep the mobile app's current dark design 100% intact; the web app mirrors that same
    design language. Restyle only the specific surfaces called out in the brief, always into the existing
    design system (tokens in `mobile-app/tailwind.config.js`; accent green `#C0F67F`, blue `#4AC3FF`,
@@ -77,6 +78,23 @@ online is purely additive.
 9. **Git discipline.** Branch off `main`; focused conventional commits; clean tree; never force-push; never
    commit secrets. Commit/push only when asked.
 10. **STOP gates.** End of Phase 1 and Phase 2 require an explicit "go" before proceeding.
+
+## Phase 3 status (branch `feat/backend-foundation`)
+
+Implemented + verified (mobile `tsc` 0 errors, 43 jest tests; web `tsc`/`next build` clean, 9 vitest tests):
+- **3.0** build blocker fixed. **3.1** backend skeleton: full Prisma schema (migrated to Postgres),
+  `/api/m/*` + `/api/w/*`, constant-time `x-http-key`, web session/login, R2 presign, TLS scoped.
+- **3.2** full sync engine (`web-dashboard/src/lib/sync.ts`): all 13 tables, idempotent + atomic push,
+  `updated_at` LWW, `serverUpdatedAt` delta pull, **vault sanitizer (ciphertext only)**; client re-pointed.
+- **3.3** task correctness: `taskLifecycle.ts` (5am renewal, 6h custom-only fail→distinct `failed`, 16h/48h
+  windows), completion-remark persistence, categories master-list + live-filter picker, contact linkage,
+  fixed=time-only. **3.5** vault: note decrypt round-trip, lockout/backoff, excluded from DatabaseBrowser,
+  unified UIs. **3.6** finance scheduled-txn fix + Import removed. **3.7** `insights.ts` (the 4 analytics)
+  + WakaTime API-key fix. **3.4** hardening manifest perms + comment. **3.8** web login + dashboard gate.
+
+Remaining (device- or UI-heavy, deferred with notes in each commit): native lockdown hardening
+(overlay/foreground-service/boot/exact-alarms), sensors + usage-stats data sources + Insights settings UI +
+dashboard wiring, R2 upload wiring, Google Calendar OAuth, backend cron, and full web CRUD parity.
 
 ## Delivery phases (see `AUDIT.md` / plan for detail)
 

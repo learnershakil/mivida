@@ -27,6 +27,36 @@ const VAULT_DIR = `${FileSystem.documentDirectory}vault/`;
 const VAULT_AUDIO_DIR = `${VAULT_DIR}audio/`;
 const VAULT_MEDIA_DIR = `${VAULT_DIR}media/`;
 
+// Vault blobs are AES-encrypted BEFORE upload — R2 only ever holds ciphertext (Guardrail 3).
+// crypto-js works on in-memory strings, so cap the size; videos are skipped (documented limitation).
+const MAX_VAULT_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+async function uploadEncryptedToR2(item: VaultMedia, localUri: string): Promise<void> {
+  try {
+    const info = await FileSystem.getInfoAsync(localUri);
+    if (!info.exists) return;
+    if ((info as { size?: number }).size && (info as { size: number }).size > MAX_VAULT_UPLOAD_BYTES) {
+      console.warn('[VaultService] blob too large for encrypted upload, kept local-only');
+      return;
+    }
+    const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
+    const ciphertext = await vaultEncryptionService.encrypt(base64);
+    const tmp = `${FileSystem.cacheDirectory}vault_up_${Date.now()}.enc`;
+    await FileSystem.writeAsStringAsync(tmp, ciphertext);
+    const { uploadToR2 } = await import('./uploadService');
+    const key = await uploadToR2(tmp, 'vault-media', 'application/octet-stream');
+    await FileSystem.deleteAsync(tmp, { idempotent: true });
+    await database.write(async () => {
+      await item.update((r) => {
+        r.r2Key = key;
+      });
+    });
+    console.log('[VaultService] encrypted blob uploaded to R2:', key);
+  } catch (e) {
+    console.warn('[VaultService] encrypted upload failed (kept local)', e);
+  }
+}
+
 /**
  * Ensure vault directories exist
  */
@@ -247,6 +277,20 @@ export async function updateNote(
 }
 
 /**
+ * Safely decrypt a stored vault string. Falls back to the original value for legacy/plaintext data
+ * so display never shows raw ciphertext or crashes (fixes AUDIT §6.1 note round-trip bug).
+ */
+export async function decryptText(cipher: string | undefined): Promise<string> {
+  if (!cipher) return '';
+  try {
+    const plain = await vaultEncryptionService.decrypt(cipher);
+    return plain || cipher;
+  } catch {
+    return cipher;
+  }
+}
+
+/**
  * Get all notes
  */
 export async function getNotes(userId: string): Promise<VaultMedia[]> {
@@ -293,6 +337,11 @@ export async function addMedia(params: AddMediaParams): Promise<VaultMedia> {
       record.userId = userId;
     });
   });
+
+  // Encrypted cloud copy (images only — videos exceed the in-memory encryption cap).
+  if (mediaType === 'image') {
+    uploadEncryptedToR2(media, permanentUri).catch(() => {});
+  }
 
   return media;
 }
@@ -350,6 +399,9 @@ export async function addAudio(params: AddAudioParams): Promise<VaultMedia> {
     });
   });
 
+  // Encrypted cloud copy.
+  uploadEncryptedToR2(audio, permanentUri).catch(() => {});
+
   return audio;
 }
 
@@ -390,11 +442,13 @@ export async function getAudio(userId: string): Promise<VaultMedia[]> {
  */
 export async function renameItem(itemId: string, newName: string, userId: string): Promise<void> {
   const item = await database.get<VaultMedia>('vault_media').find(itemId);
+  // Note titles are encrypted at rest (consistent with addNote); audio/media titles stay plaintext.
+  const titleValue = item.mediaType === 'note' ? await vaultEncryptionService.encrypt(newName) : newName;
 
   await database.write(async () => {
     await item.update((record) => {
       if (record.mediaType === 'note' || record.mediaType === 'audio') {
-        record.title = newName;
+        record.title = titleValue;
       } else {
         record.filename = newName;
         record.title = newName;
@@ -523,6 +577,7 @@ const vaultService = {
   addNote,
   updateNote,
   getNotes,
+  decryptText,
   // Media
   addMedia,
   getMedia,

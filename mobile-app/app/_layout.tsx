@@ -22,6 +22,9 @@ import { deadManService } from '../services/deadMan'
 import { alertService } from '../services/alertService'
 import { soundService } from '../services/soundService'
 import { runTaskMaintenance } from '../services/taskMaintenance'
+import { backupEventLog } from '../services/dbBackup'
+import { registerPushToken, listenForPushTaps } from '../services/pushService'
+import { initSensors } from '../services/sensorService'
 import { appEvents, AppEvents } from '../services/appEvents'
 import '../global.css'
 
@@ -96,12 +99,19 @@ export default function Layout() {
         // Initialize sound service
         await soundService.init(user.id);
 
+        // Back up the event log before any migration/maintenance mutates state (Guardrail 2)
+        await backupEventLog(user.id);
+
         // Run task maintenance (auto-marking and renewals)
         await runTaskMaintenance(user.id);
 
         // Initialize alert service and reschedule any active alerts
         await alertService.init(user.id);
         await alertService.rescheduleActiveAlerts();
+
+        // Register for FCM push (mood pings) + start pedometer tracking — both best-effort.
+        registerPushToken().catch((e) => console.warn('[App] push register failed', e));
+        initSensors(user.id).catch((e) => console.warn('[App] sensors init failed', e));
 
         // Start Dead Man's Switch monitoring if user is awake
         if (user.isAwake) {
@@ -117,6 +127,9 @@ export default function Layout() {
     }
 
     initialize();
+
+    // Route taps on server-sent FCM pushes (mood pings) into the app
+    const unsubscribePushTaps = listenForPushTaps();
 
     // Setup foreground event listener for alert notifications
     const unsubscribe = notifee.onForegroundEvent(async ({ type, detail }) => {
@@ -150,6 +163,7 @@ export default function Layout() {
     return () => {
       deadManService.stop();
       unsubscribe();
+      unsubscribePushTaps();
     };
   }, []);
 
@@ -177,7 +191,7 @@ export default function Layout() {
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
+          {/* Settings is a modal component (SettingsModal), not a route — no orphaned screen. */}
         </Stack>
       </CustomAlertProvider>
     </DatabaseProvider>

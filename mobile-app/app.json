@@ -11,7 +11,7 @@
       "expo-secure-store"
     ],
     "android": {
-      "package": "com.productivitylogger.app",
+      "package": "me.learnershakil.mivida",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"

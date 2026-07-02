@@ -18,7 +18,9 @@ interface UserObserverProps {
 const UserAwakeToggle = ({ user }: UserObserverProps) => {
     const handleToggle = async () => {
         try {
-            const newState = await toggleAwakeState(user);
+            // toggleAwakeState flips the state; the new value is the inverse of the current one.
+            const newState = !user.isAwake;
+            await toggleAwakeState(user);
 
             // Start or stop Dead Man service based on new state
             if (newState) {

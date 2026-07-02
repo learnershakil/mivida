@@ -21,6 +21,7 @@ export default class VaultMedia extends Model {
   @field('title') title?: string; // Title for notes/audio
   @field('content') content?: string; // Text content for notes
   @field('duration') duration?: number; // Audio duration in ms
+  @field('r2_key') r2Key?: string; // R2 key of the ENCRYPTED blob
   @field('user_id') userId!: string;
 
   @readonly @date('created_at') createdAt!: number;
