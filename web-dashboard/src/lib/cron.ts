@@ -123,10 +123,13 @@ async function fatigueTrigger(db: DB, now: number): Promise<number> {
 
     const steps = sensor?.steps ?? 0
     const screenMs = usage ? Number(usage.totalScreenMs) : 0
+    // Prefer the flat fatigue columns synced from the device Insights settings; fall back to the
+    // extensible `insights` JSON, then to sane defaults.
     const insights = (u.setting?.insights as { fatigue?: { screenTimeHours?: number; steps?: number } }) ?? {}
     const thr = {
-      screenTimeHours: insights.fatigue?.screenTimeHours ?? 6,
-      steps: insights.fatigue?.steps ?? 1000,
+      screenTimeHours:
+        u.setting?.fatigueScreenTimeThresholdHours ?? insights.fatigue?.screenTimeHours ?? 6,
+      steps: u.setting?.fatigueStepsThreshold ?? insights.fatigue?.steps ?? 1000,
     }
     if (!fatigueTriggered(screenMs, steps, thr)) continue
 
