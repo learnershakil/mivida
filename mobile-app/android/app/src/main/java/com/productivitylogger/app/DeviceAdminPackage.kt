@@ -7,7 +7,7 @@ import com.facebook.react.uimanager.ViewManager
 
 class DeviceAdminPackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        return listOf(DeviceAdminModule(reactContext), LockdownOverlayModule(reactContext))
+        return listOf(DeviceAdminModule(reactContext), LockdownOverlayModule(reactContext), FocusScheduleModule(reactContext))
     }
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
