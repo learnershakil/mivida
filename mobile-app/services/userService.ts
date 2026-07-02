@@ -202,6 +202,8 @@ export async function updateSettings(
     vaultAutoLockMinutes: number;
     moodTrackerEnabled: boolean;
     moodTrackerIntervalMinutes: number;
+    fatigueScreenTimeThresholdHours: number;
+    fatigueStepsThreshold: number;
   }>
 ): Promise<void> {
   const changedFields: Record<string, { from: unknown; to: unknown }> = {};
@@ -243,6 +245,10 @@ export async function updateSettings(
         record.moodTrackerEnabled = updates.moodTrackerEnabled;
       if (updates.moodTrackerIntervalMinutes !== undefined)
         record.moodTrackerIntervalMinutes = updates.moodTrackerIntervalMinutes;
+      if (updates.fatigueScreenTimeThresholdHours !== undefined)
+        record.fatigueScreenTimeThresholdHours = updates.fatigueScreenTimeThresholdHours;
+      if (updates.fatigueStepsThreshold !== undefined)
+        record.fatigueStepsThreshold = updates.fatigueStepsThreshold;
     });
   });
 

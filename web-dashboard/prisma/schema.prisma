@@ -116,6 +116,10 @@ model Setting {
   vaultAutoLockMinutes       Int     @default(5)
   moodTrackerEnabled         Boolean @default(false)
   moodTrackerIntervalMinutes Int     @default(45)
+  // Insights group. `insights` is the extensible JSON blob; the two flat fatigue columns mirror the
+  // device's `fatigue_*` columns 1:1 so the DMMF sync mapper carries them through automatically.
+  fatigueScreenTimeThresholdHours Float?
+  fatigueStepsThreshold           Int?
   insights                   Json? // { [metric]: { enabled, thresholds… } } — Insights group
   lastSyncTimestamp          BigInt?
   updatedAt                  BigInt

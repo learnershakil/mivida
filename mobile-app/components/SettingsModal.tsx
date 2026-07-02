@@ -21,7 +21,7 @@ import {
     Alert,
     StyleSheet,
 } from 'react-native';
-import { X, Bell, Lock, Clock, Download, ChevronRight, Calendar, Sun, Briefcase, Volume2, Play, Music, Heart } from 'lucide-react-native';
+import { X, Bell, Lock, Clock, Download, ChevronRight, Calendar, Sun, Briefcase, Volume2, Play, Music, Heart, Brain } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { withObservables } from '@nozbe/watermelondb/react';
 import { database } from '../database';
@@ -73,6 +73,8 @@ function SettingsModalBase({ visible, onClose, settings, userId }: SettingsModal
     const [isPreviewingSound, setIsPreviewingSound] = useState<string | null>(null);
     const [moodTrackerEnabled, setMoodTrackerEnabled] = useState(false);
     const [moodTrackerInterval, setMoodTrackerInterval] = useState('45');
+    const [fatigueScreenTimeHours, setFatigueScreenTimeHours] = useState('6');
+    const [fatigueSteps, setFatigueSteps] = useState('1000');
 
     useEffect(() => {
         if (settings) {
@@ -89,6 +91,8 @@ function SettingsModalBase({ visible, onClose, settings, userId }: SettingsModal
             setDayMode((settings.taskMode as 'weekday' | 'holiday') || 'weekday');
             setMoodTrackerEnabled(settings.moodTrackerEnabled ?? false);
             setMoodTrackerInterval((settings.moodTrackerIntervalMinutes ?? 45).toString());
+            setFatigueScreenTimeHours((settings.fatigueScreenTimeThresholdHours ?? 6).toString());
+            setFatigueSteps((settings.fatigueStepsThreshold ?? 1000).toString());
         }
     }, [settings]);
 
@@ -155,6 +159,8 @@ function SettingsModalBase({ visible, onClose, settings, userId }: SettingsModal
                 taskMode: dayMode,
                 moodTrackerEnabled,
                 moodTrackerIntervalMinutes: moodIntervalValue,
+                fatigueScreenTimeThresholdHours: parseFloat(fatigueScreenTimeHours) || 6,
+                fatigueStepsThreshold: parseInt(fatigueSteps, 10) || 1000,
             });
 
             // Start or stop mood tracker based on setting
@@ -536,6 +542,43 @@ function SettingsModalBase({ visible, onClose, settings, userId }: SettingsModal
                                     </Text>
                                 </View>
                             )}
+                        </View>
+
+                        {/* Insights Section — fatigue thresholds feed the auto physical-activity trigger */}
+                        <View className="mb-8">
+                            <View className="flex-row items-center gap-2 mb-4">
+                                <Brain size={20} color="#4AC3FF" />
+                                <Text className="text-lg font-bold">Insights</Text>
+                            </View>
+
+                            <View className="bg-gray-50 rounded-2xl p-4 mb-3">
+                                <Text className="text-gray-500 text-sm mb-2">
+                                    Fatigue: screen-time threshold (hours)
+                                </Text>
+                                <TextInput
+                                    className="bg-white border border-gray-200 rounded-xl p-3 text-lg font-bold"
+                                    value={fatigueScreenTimeHours}
+                                    onChangeText={setFatigueScreenTimeHours}
+                                    keyboardType="numeric"
+                                    placeholder="6"
+                                />
+                            </View>
+
+                            <View className="bg-gray-50 rounded-2xl p-4">
+                                <Text className="text-gray-500 text-sm mb-2">
+                                    Fatigue: daily steps threshold
+                                </Text>
+                                <TextInput
+                                    className="bg-white border border-gray-200 rounded-xl p-3 text-lg font-bold"
+                                    value={fatigueSteps}
+                                    onChangeText={setFatigueSteps}
+                                    keyboardType="numeric"
+                                    placeholder="1000"
+                                />
+                                <Text className="text-gray-400 text-xs mt-2">
+                                    When screen time exceeds the hours above and steps stay below this count, a physical-activity task is suggested.
+                                </Text>
+                            </View>
                         </View>
 
                         {/* Export Section */}
