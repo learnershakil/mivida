@@ -471,6 +471,7 @@ model SyncState {
   user                User     @relation(fields: [userId], references: [id])
   deviceLastSyncAt    BigInt?
   serverLastAppliedAt DateTime @default(now())
+  lastMoodPingAt      BigInt? // when the cron last sent a mood-check push (gates the interval)
 }
 
 model GoogleAuth {

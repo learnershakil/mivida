@@ -5,6 +5,7 @@ import type { PrismaClient } from '@prisma/client'
 import { shouldAutoFail, shouldRenewFixed, next7Days, fatigueTriggered, dayBucket } from '@/lib/lifecycle'
 import { fetchAndStoreWakatime } from '@/lib/wakatime'
 import { reconcileGoogleCalendar } from '@/lib/calendarSync'
+import { sendToUser } from '@/lib/fcm'
 
 type DB = PrismaClient
 
@@ -18,6 +19,7 @@ export interface CronReport {
   wakatimeSynced: number
   calendarCreated: number
   calendarDeleted: number
+  moodPings: number
 }
 
 /** Fixed-task 5AM renewal — reset completed daily routines. Skipped for users in Holiday day-mode. */
@@ -182,6 +184,41 @@ async function syncCalendar(db: DB): Promise<{ created: number; deleted: number 
   return { created, deleted }
 }
 
+/**
+ * Mood-check pushes: for each user with the mood tracker enabled, send an FCM ping when at least
+ * moodTrackerIntervalMinutes have elapsed since the last one (marker on SyncState.lastMoodPingAt).
+ * The cron cadence (15 min) bounds the effective granularity.
+ */
+async function sendMoodPings(db: DB, now: number): Promise<number> {
+  const settings = await db.setting.findMany({ where: { moodTrackerEnabled: true } })
+  let n = 0
+  for (const s of settings) {
+    const intervalMs = Math.max(15, s.moodTrackerIntervalMinutes || 45) * 60_000
+    const state = await db.syncState.findUnique({ where: { userId: s.userId } })
+    const last = state?.lastMoodPingAt ? Number(state.lastMoodPingAt) : 0
+    if (now - last < intervalMs) continue
+    try {
+      const delivered = await sendToUser(
+        s.userId,
+        '🎭 How are you feeling?',
+        'Take a second to log your mood.',
+        { action: 'mood_check' },
+      )
+      if (delivered > 0) {
+        await db.syncState.upsert({
+          where: { userId: s.userId },
+          update: { lastMoodPingAt: BigInt(now) },
+          create: { userId: s.userId, lastMoodPingAt: BigInt(now) },
+        })
+        n += delivered
+      }
+    } catch (err) {
+      console.warn('[cron] mood ping failed for', s.userId, err)
+    }
+  }
+  return n
+}
+
 export async function runCron(db: DB, now: number): Promise<CronReport> {
   const renewedFixed = await renewFixed(db, now)
   const failedCustom = await failExpiredCustom(db, now)
@@ -190,6 +227,7 @@ export async function runCron(db: DB, now: number): Promise<CronReport> {
   const fatigueTasks = await fatigueTrigger(db, now)
   const wakatimeSynced = await syncWakatime(db)
   const calendar = await syncCalendar(db)
+  const moodPings = await sendMoodPings(db, now)
   return {
     ranAt: now,
     renewedFixed,
@@ -200,5 +238,6 @@ export async function runCron(db: DB, now: number): Promise<CronReport> {
     wakatimeSynced,
     calendarCreated: calendar.created,
     calendarDeleted: calendar.deleted,
+    moodPings,
   }
 }
