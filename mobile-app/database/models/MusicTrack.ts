@@ -10,6 +10,8 @@ export default class MusicTrack extends Model {
   @text('file_uri') fileUri!: string;
   @text('file_name') fileName!: string;
   @text('album_art_uri') albumArtUri!: string | null;
+  @text('r2_key') r2Key!: string | null; // R2 cloud copy of the audio file
+  @text('album_art_r2_key') albumArtR2Key!: string | null; // R2 cloud copy of the art
   @field('duration') duration!: number;
   @text('category') category!: string;
   @field('is_favorite') isFavorite!: boolean;

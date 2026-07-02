@@ -248,5 +248,26 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    // Migration from v17 to v18: R2 cloud-copy key columns (avatar, music, vault)
+    {
+      toVersion: 18,
+      steps: [
+        addColumns({
+          table: 'users',
+          columns: [{ name: 'avatar_r2_key', type: 'string', isOptional: true }],
+        }),
+        addColumns({
+          table: 'music_tracks',
+          columns: [
+            { name: 'r2_key', type: 'string', isOptional: true },
+            { name: 'album_art_r2_key', type: 'string', isOptional: true },
+          ],
+        }),
+        addColumns({
+          table: 'vault_media',
+          columns: [{ name: 'r2_key', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
   ],
 });

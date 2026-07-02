@@ -151,6 +151,23 @@ export const addTrackToLibrary = async (
   });
 
   console.log('[MusicService] Track added:', title);
+
+  // Cloud copy: push the audio file to R2 in the background and store the key (syncs to MusicTrack.r2Key).
+  (async () => {
+    try {
+      const { uploadToR2 } = await import('./uploadService');
+      const key = await uploadToR2(destFile.uri, 'music', 'audio/mpeg');
+      await database.write(async () => {
+        await track.update((t) => {
+          t.r2Key = key;
+        });
+      });
+      console.log('[MusicService] track uploaded to R2:', key);
+    } catch (e) {
+      console.warn('[MusicService] R2 upload failed (kept local)', e);
+    }
+  })();
+
   return track;
 };
 
