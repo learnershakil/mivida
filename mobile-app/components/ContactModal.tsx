@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import Contact from '../database/models/Contact';
 import contactService from '../services/contactService';
-import { Phone, Mail, Instagram, Twitter, Linkedin, Github } from 'lucide-react-native';
+import { Phone, Mail, Instagram, Twitter, Linkedin, Github, X, MapPin } from 'lucide-react-native';
 
 interface ContactModalProps {
     visible: boolean;
@@ -34,6 +34,7 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
     const [socialTwitter, setSocialTwitter] = useState('');
     const [socialLinkedin, setSocialLinkedin] = useState('');
     const [socialGithub, setSocialGithub] = useState('');
+    const [source, setSource] = useState('');
 
     const loadContacts = async () => {
         setLoading(true);
@@ -61,6 +62,7 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
         setSocialTwitter('');
         setSocialLinkedin('');
         setSocialGithub('');
+        setSource('');
     };
 
     const handleCreateOrUpdate = async () => {
@@ -83,6 +85,7 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
                     email: email.trim(),
                     phone: phone.trim(),
                     socials,
+                    source: source.trim(),
                 });
             } else {
                 await contactService.create({
@@ -90,6 +93,7 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
                     email: email.trim(),
                     phone: phone.trim(),
                     socials,
+                    source: source.trim(),
                     userId,
                 });
             }
@@ -113,6 +117,7 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
         setSocialTwitter(socials.twitter || '');
         setSocialLinkedin(socials.linkedin || '');
         setSocialGithub(socials.github || '');
+        setSource(contact.source || '');
         setActiveTab('create');
     };
 
@@ -139,32 +144,35 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent>
-            <View className="flex-1 bg-black/50 justify-end">
-                <View className="bg-[#1E1E1E] rounded-t-3xl h-[90%]">
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={() => { resetForm(); onClose(); }}>
+            <View className="flex-1 bg-black/50">
+                <View className="flex-1 bg-white rounded-t-[40px] mt-20">
                     {/* Header */}
-                    <View className="flex-row justify-between items-center p-5 border-b border-[#2C2C2E]">
-                        <Text className="text-xl font-bold text-white">Contacts</Text>
-                        <TouchableOpacity onPress={() => { resetForm(); onClose(); }}>
-                            <Text className="text-[#4AC3FF] text-lg font-medium">Done</Text>
+                    <View className="flex-row justify-between items-center p-6 border-b border-gray-100">
+                        <Text className="text-2xl font-bold">Contacts</Text>
+                        <TouchableOpacity
+                            onPress={() => { resetForm(); onClose(); }}
+                            className="h-10 w-10 bg-gray-100 rounded-full items-center justify-center"
+                        >
+                            <X size={20} color="black" />
                         </TouchableOpacity>
                     </View>
 
                     {/* Tab Buttons */}
-                    <View className="flex-row p-3">
+                    <View className="flex-row px-6 pt-4 gap-3">
                         <TouchableOpacity
-                            className={`flex-1 py-3 rounded-xl mr-2 ${activeTab === 'list' ? 'bg-[#4AC3FF]' : 'bg-[#2C2C2E]'}`}
+                            className={`flex-1 py-3 rounded-full items-center ${activeTab === 'list' ? 'bg-[#1E1E1E]' : 'bg-gray-100'}`}
                             onPress={() => { resetForm(); setActiveTab('list'); }}
                         >
-                            <Text className={`text-center font-bold ${activeTab === 'list' ? 'text-black' : 'text-white'}`}>
+                            <Text className={`font-bold ${activeTab === 'list' ? 'text-white' : 'text-gray-500'}`}>
                                 My Contacts ({contacts.length})
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            className={`flex-1 py-3 rounded-xl ${activeTab === 'create' ? 'bg-[#C0F67F]' : 'bg-[#2C2C2E]'}`}
+                            className={`flex-1 py-3 rounded-full items-center ${activeTab === 'create' ? 'bg-[#1E1E1E]' : 'bg-gray-100'}`}
                             onPress={() => { resetForm(); setActiveTab('create'); }}
                         >
-                            <Text className={`text-center font-bold ${activeTab === 'create' ? 'text-black' : 'text-white'}`}>
+                            <Text className={`font-bold ${activeTab === 'create' ? 'text-white' : 'text-gray-500'}`}>
                                 {editingContact ? 'Edit Contact' : '+ New Contact'}
                             </Text>
                         </TouchableOpacity>
@@ -172,55 +180,61 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
 
                     {activeTab === 'list' ? (
                         /* Contact List */
-                        <ScrollView className="flex-1 px-4 pt-2">
+                        <ScrollView className="flex-1 px-6 pt-4" showsVerticalScrollIndicator={false}>
                             {loading ? (
                                 <Text className="text-gray-400 text-center py-8">Loading contacts...</Text>
                             ) : contacts.length === 0 ? (
                                 <Text className="text-gray-400 text-center py-8">
-                                    No contacts found. Tap "+ New Contact" to add one.
+                                    No contacts found. Tap &quot;+ New Contact&quot; to add one.
                                 </Text>
                             ) : (
                                 contacts.map((contact) => (
-                                    <View key={contact.id} className="bg-[#2C2C2E] rounded-2xl p-4 mb-4 shadow-sm">
+                                    <View key={contact.id} className="bg-gray-50 rounded-2xl p-4 mb-4">
                                         <View className="flex-row justify-between items-start mb-3">
                                             <View>
-                                                <Text className="text-white font-bold text-lg mb-1">{contact.name}</Text>
+                                                <Text className="text-[#1E1E1E] font-bold text-lg mb-1">{contact.name}</Text>
                                                 {contact.phone ? (
                                                     <View className="flex-row items-center mb-1">
-                                                        <Phone size={14} color="#8E8E93" />
-                                                        <Text className="text-gray-400 ml-2">{contact.phone}</Text>
+                                                        <Phone size={14} color="#9CA3AF" />
+                                                        <Text className="text-gray-500 ml-2">{contact.phone}</Text>
                                                     </View>
                                                 ) : null}
                                                 {contact.email ? (
                                                     <View className="flex-row items-center">
-                                                        <Mail size={14} color="#8E8E93" />
-                                                        <Text className="text-gray-400 ml-2">{contact.email}</Text>
+                                                        <Mail size={14} color="#9CA3AF" />
+                                                        <Text className="text-gray-500 ml-2">{contact.email}</Text>
+                                                    </View>
+                                                ) : null}
+                                                {contact.source ? (
+                                                    <View className="flex-row items-start mt-1 pr-4">
+                                                        <MapPin size={14} color="#4AC3FF" style={{ marginTop: 2 }} />
+                                                        <Text className="text-gray-500 ml-2 flex-1">{contact.source}</Text>
                                                     </View>
                                                 ) : null}
                                             </View>
-                                            
+
                                             {/* Social Badges */}
                                             <View className="flex-row gap-2">
-                                                {contact.socials?.instagram ? <Instagram size={16} color="#FF8E6E" /> : null}
-                                                {contact.socials?.twitter ? <Twitter size={16} color="#4AC3FF" /> : null}
-                                                {contact.socials?.linkedin ? <Linkedin size={16} color="#D8C8FE" /> : null}
-                                                {contact.socials?.github ? <Github size={16} color="#FFFFFF" /> : null}
+                                                {contact.socials?.instagram ? <Instagram size={16} color="#E1306C" /> : null}
+                                                {contact.socials?.twitter ? <Twitter size={16} color="#1DA1F2" /> : null}
+                                                {contact.socials?.linkedin ? <Linkedin size={16} color="#0A66C2" /> : null}
+                                                {contact.socials?.github ? <Github size={16} color="#1E1E1E" /> : null}
                                             </View>
                                         </View>
 
                                         {/* Actions */}
-                                        <View className="flex-row border-t border-[#3C3C3E] pt-3">
+                                        <View className="flex-row border-t border-gray-200 pt-3">
                                             <TouchableOpacity
-                                                className="flex-1 items-center justify-center py-2 bg-[#3C3C3E] rounded-lg mr-2"
+                                                className="flex-1 items-center justify-center py-2 bg-gray-100 rounded-xl mr-2"
                                                 onPress={() => handleEdit(contact)}
                                             >
-                                                <Text className="text-white font-medium">Edit</Text>
+                                                <Text className="text-[#1E1E1E] font-medium">Edit</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
-                                                className="flex-1 items-center justify-center py-2 bg-[#FF6E6E]/20 rounded-lg"
+                                                className="flex-1 items-center justify-center py-2 bg-[#FF6B6B]/10 rounded-xl"
                                                 onPress={() => handleDelete(contact)}
                                             >
-                                                <Text className="text-[#FF6E6E] font-medium">Delete</Text>
+                                                <Text className="text-[#FF6B6B] font-medium">Delete</Text>
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -230,27 +244,27 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
                         </ScrollView>
                     ) : (
                         /* Create/Edit Form */
-                        <ScrollView className="flex-1 px-5 pt-4">
-                            <Text className="text-white font-bold text-lg mb-4">
+                        <ScrollView className="flex-1 px-6 pt-4" showsVerticalScrollIndicator={false}>
+                            <Text className="text-[#1E1E1E] font-bold text-lg mb-4">
                                 {editingContact ? 'Edit Contact Info' : 'New Contact Info'}
                             </Text>
 
-                            <View className="bg-[#2C2C2E] p-1 rounded-2xl mb-6">
-                                <View className="border-b border-[#3C3C3E]">
+                            <View className="bg-gray-50 rounded-2xl mb-6">
+                                <View className="border-b border-gray-200">
                                     <TextInput
-                                        className="text-white p-4 text-base font-medium"
+                                        className="text-[#1E1E1E] p-4 text-base font-medium"
                                         placeholder="Name *"
-                                        placeholderTextColor="#8E8E93"
+                                        placeholderTextColor="#9CA3AF"
                                         value={name}
                                         onChangeText={setName}
                                         autoCapitalize="words"
                                     />
                                 </View>
-                                <View className="border-b border-[#3C3C3E]">
+                                <View className="border-b border-gray-200">
                                     <TextInput
-                                        className="text-white p-4 text-base"
+                                        className="text-[#1E1E1E] p-4 text-base"
                                         placeholder="Phone"
-                                        placeholderTextColor="#8E8E93"
+                                        placeholderTextColor="#9CA3AF"
                                         value={phone}
                                         onChangeText={setPhone}
                                         keyboardType="phone-pad"
@@ -258,9 +272,9 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
                                 </View>
                                 <View>
                                     <TextInput
-                                        className="text-white p-4 text-base"
+                                        className="text-[#1E1E1E] p-4 text-base"
                                         placeholder="Email"
-                                        placeholderTextColor="#8E8E93"
+                                        placeholderTextColor="#9CA3AF"
                                         value={email}
                                         onChangeText={setEmail}
                                         keyboardType="email-address"
@@ -269,48 +283,67 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
                                 </View>
                             </View>
 
-                            <Text className="text-white font-bold text-lg mb-4">Socials (Optional)</Text>
-                            
-                            <View className="bg-[#2C2C2E] p-1 rounded-2xl mb-8">
-                                <View className="flex-row items-center border-b border-[#3C3C3E] px-4">
-                                    <Instagram size={20} color="#FF8E6E" />
+                            <Text className="text-[#1E1E1E] font-bold text-lg mb-1">Where We Met</Text>
+                            <Text className="text-gray-400 text-xs mb-4">
+                                Note where you met or got their details — handy for future reference.
+                            </Text>
+
+                            <View className="bg-gray-50 rounded-2xl mb-8 flex-row items-start px-4">
+                                <View className="pt-4">
+                                    <MapPin size={20} color="#4AC3FF" />
+                                </View>
+                                <TextInput
+                                    className="flex-1 text-[#1E1E1E] p-4 text-base"
+                                    placeholder="e.g. React meetup, referred by Sarah, DM on LinkedIn…"
+                                    placeholderTextColor="#9CA3AF"
+                                    value={source}
+                                    onChangeText={setSource}
+                                    multiline
+                                />
+                            </View>
+
+                            <Text className="text-[#1E1E1E] font-bold text-lg mb-4">Socials (Optional)</Text>
+
+                            <View className="bg-gray-50 rounded-2xl mb-8">
+                                <View className="flex-row items-center border-b border-gray-200 px-4">
+                                    <Instagram size={20} color="#E1306C" />
                                     <TextInput
-                                        className="flex-1 text-white p-4 text-base"
+                                        className="flex-1 text-[#1E1E1E] p-4 text-base"
                                         placeholder="Instagram Username"
-                                        placeholderTextColor="#8E8E93"
+                                        placeholderTextColor="#9CA3AF"
                                         value={socialInstagram}
                                         onChangeText={setSocialInstagram}
                                         autoCapitalize="none"
                                     />
                                 </View>
-                                <View className="flex-row items-center border-b border-[#3C3C3E] px-4">
-                                    <Twitter size={20} color="#4AC3FF" />
+                                <View className="flex-row items-center border-b border-gray-200 px-4">
+                                    <Twitter size={20} color="#1DA1F2" />
                                     <TextInput
-                                        className="flex-1 text-white p-4 text-base"
+                                        className="flex-1 text-[#1E1E1E] p-4 text-base"
                                         placeholder="Twitter/X Username"
-                                        placeholderTextColor="#8E8E93"
+                                        placeholderTextColor="#9CA3AF"
                                         value={socialTwitter}
                                         onChangeText={setSocialTwitter}
                                         autoCapitalize="none"
                                     />
                                 </View>
-                                <View className="flex-row items-center border-b border-[#3C3C3E] px-4">
-                                    <Linkedin size={20} color="#D8C8FE" />
+                                <View className="flex-row items-center border-b border-gray-200 px-4">
+                                    <Linkedin size={20} color="#0A66C2" />
                                     <TextInput
-                                        className="flex-1 text-white p-4 text-base"
+                                        className="flex-1 text-[#1E1E1E] p-4 text-base"
                                         placeholder="LinkedIn URL or Username"
-                                        placeholderTextColor="#8E8E93"
+                                        placeholderTextColor="#9CA3AF"
                                         value={socialLinkedin}
                                         onChangeText={setSocialLinkedin}
                                         autoCapitalize="none"
                                     />
                                 </View>
                                 <View className="flex-row items-center px-4">
-                                    <Github size={20} color="#FFFFFF" />
+                                    <Github size={20} color="#1E1E1E" />
                                     <TextInput
-                                        className="flex-1 text-white p-4 text-base"
+                                        className="flex-1 text-[#1E1E1E] p-4 text-base"
                                         placeholder="GitHub Username"
-                                        placeholderTextColor="#8E8E93"
+                                        placeholderTextColor="#9CA3AF"
                                         value={socialGithub}
                                         onChangeText={setSocialGithub}
                                         autoCapitalize="none"
@@ -319,10 +352,10 @@ export default function ContactModal({ visible, onClose, userId }: ContactModalP
                             </View>
 
                             <TouchableOpacity
-                                className="bg-[#C0F67F] p-4 rounded-full items-center mb-10 shadow-sm"
+                                className="bg-[#1E1E1E] py-5 rounded-full items-center mb-10"
                                 onPress={handleCreateOrUpdate}
                             >
-                                <Text className="text-black font-bold text-lg">
+                                <Text className="text-white font-bold text-lg">
                                     {editingContact ? 'Save Changes' : 'Add Contact'}
                                 </Text>
                             </TouchableOpacity>

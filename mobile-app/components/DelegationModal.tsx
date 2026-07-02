@@ -14,6 +14,7 @@ import {
     ScrollView,
     Alert,
 } from 'react-native';
+import { X } from 'lucide-react-native';
 import Task from '../database/models/Task';
 import delegationService from '../services/delegationService';
 
@@ -139,74 +140,79 @@ export default function DelegationModal({ visible, onClose, userId }: Delegation
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent>
-            <View className="flex-1 bg-black/50 justify-end">
-                <View className="bg-gray-900 rounded-t-3xl h-[85%]">
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View className="flex-1 bg-black/50">
+                <View className="flex-1 bg-white rounded-t-[40px] mt-20">
                     {/* Header */}
-                    <View className="flex-row justify-between items-center p-4 border-b border-gray-800">
-                        <Text className="text-xl font-bold text-white">Delegation Center</Text>
-                        <TouchableOpacity onPress={onClose}>
-                            <Text className="text-blue-400 text-lg">Close</Text>
+                    <View className="flex-row justify-between items-center p-6 border-b border-gray-100">
+                        <Text className="text-2xl font-bold">Delegation Center</Text>
+                        <TouchableOpacity
+                            onPress={onClose}
+                            className="h-10 w-10 bg-gray-100 rounded-full items-center justify-center"
+                        >
+                            <X size={20} color="black" />
                         </TouchableOpacity>
                     </View>
 
                     {/* Tab Buttons */}
-                    <View className="flex-row p-2">
+                    <View className="flex-row px-6 pt-4 gap-3">
                         <TouchableOpacity
-                            className={`flex-1 py-3 rounded-lg mr-1 ${activeTab === 'list' ? 'bg-blue-600' : 'bg-gray-800'}`}
+                            className={`flex-1 py-3 rounded-full items-center ${activeTab === 'list' ? 'bg-[#1E1E1E]' : 'bg-gray-100'}`}
                             onPress={() => setActiveTab('list')}
                         >
-                            <Text className="text-white text-center font-semibold">
-                                Delegated Tasks ({delegatedTasks.length})
+                            <Text className={`font-bold ${activeTab === 'list' ? 'text-white' : 'text-gray-500'}`}>
+                                Delegated ({delegatedTasks.length})
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            className={`flex-1 py-3 rounded-lg ml-1 ${activeTab === 'create' ? 'bg-blue-600' : 'bg-gray-800'}`}
+                            className={`flex-1 py-3 rounded-full items-center ${activeTab === 'create' ? 'bg-[#1E1E1E]' : 'bg-gray-100'}`}
                             onPress={() => setActiveTab('create')}
                         >
-                            <Text className="text-white text-center font-semibold">+ Delegate New</Text>
+                            <Text className={`font-bold ${activeTab === 'create' ? 'text-white' : 'text-gray-500'}`}>
+                                + Delegate New
+                            </Text>
                         </TouchableOpacity>
                     </View>
 
                     {activeTab === 'list' ? (
                         <>
                             {/* Status Filter */}
-                            <View className="flex-row px-4 py-2">
+                            <View className="flex-row px-6 py-4">
                                 {(['all', 'assigned', 'partial', 'completed'] as StatusFilter[]).map((status) => (
                                     <TouchableOpacity
                                         key={status}
-                                        className={`px-3 py-1 rounded-full mr-2 ${statusFilter === status ? 'bg-blue-600' : 'bg-gray-800'}`}
+                                        className={`px-3 py-1.5 rounded-full mr-2 ${statusFilter === status ? 'bg-[#1E1E1E]' : 'bg-gray-100'}`}
                                         onPress={() => setStatusFilter(status)}
                                     >
-                                        <Text className="text-white capitalize text-sm">{status}</Text>
+                                        <Text className={`capitalize text-sm font-medium ${statusFilter === status ? 'text-white' : 'text-gray-500'}`}>{status}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
 
                             {/* Task List */}
-                            <ScrollView className="flex-1 px-4">
+                            <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
                                 {loading ? (
                                     <Text className="text-gray-400 text-center py-8">Loading...</Text>
                                 ) : filteredTasks.length === 0 ? (
                                     <Text className="text-gray-400 text-center py-8">
-                                        No delegated tasks yet. Tap "+ Delegate New" to add one.
+                                        No delegated tasks yet. Tap &quot;+ Delegate New&quot; to add one.
                                     </Text>
                                 ) : (
                                     filteredTasks.map((task) => (
                                         <View
                                             key={task.id}
-                                            className="bg-gray-800 rounded-xl p-4 mb-3"
+                                            className="bg-gray-50 rounded-2xl p-4 mb-3"
                                         >
                                             <View className="flex-row justify-between items-start">
-                                                <View className="flex-1">
-                                                    <Text className="text-white font-semibold text-lg">
+                                                <View className="flex-1 pr-2">
+                                                    <Text className="text-[#1E1E1E] font-bold text-lg">
                                                         {task.title}
                                                     </Text>
-                                                    <Text className="text-gray-400 text-sm mt-1">
+                                                    <Text className="text-gray-500 text-sm mt-1">
                                                         Assigned to: {task.delegatedTo}
                                                     </Text>
                                                     {task.description ? (
-                                                        <Text className="text-gray-500 text-sm mt-1">
+                                                        <Text className="text-gray-400 text-sm mt-1">
                                                             {task.description}
                                                         </Text>
                                                     ) : null}
@@ -223,9 +229,9 @@ export default function DelegationModal({ visible, onClose, userId }: Delegation
 
                                             {/* Progress Bar */}
                                             <View className="mt-3">
-                                                <View className="bg-gray-700 rounded-full h-2">
+                                                <View className="bg-gray-200 rounded-full h-2">
                                                     <View
-                                                        className="bg-blue-500 rounded-full h-2"
+                                                        className="bg-[#4AC3FF] rounded-full h-2"
                                                         style={{ width: `${task.completionPercent || 0}%` }}
                                                     />
                                                 </View>
@@ -235,80 +241,81 @@ export default function DelegationModal({ visible, onClose, userId }: Delegation
                                             </View>
 
                                             {/* Action Buttons */}
-                                            <View className="flex-row mt-3 pt-3 border-t border-gray-700">
+                                            <View className="flex-row mt-3 pt-3 border-t border-gray-200">
                                                 {task.delegatedStatus !== 'completed' && (
                                                     <>
                                                         {task.delegatedStatus === 'assigned' && (
                                                             <TouchableOpacity
-                                                                className="bg-blue-600 px-3 py-2 rounded-lg mr-2"
+                                                                className="bg-[#4AC3FF] px-4 py-2 rounded-xl mr-2"
                                                                 onPress={() => handleStatusUpdate(task, 'partial')}
                                                             >
-                                                                <Text className="text-white text-sm">Mark Partial</Text>
+                                                                <Text className="text-white text-sm font-medium">Mark Partial</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         <TouchableOpacity
-                                                            className="bg-green-600 px-3 py-2 rounded-lg mr-2"
+                                                            className="bg-[#C0F67F] px-4 py-2 rounded-xl mr-2"
                                                             onPress={() => handleStatusUpdate(task, 'completed')}
                                                         >
-                                                            <Text className="text-white text-sm">Complete</Text>
+                                                            <Text className="text-black text-sm font-medium">Complete</Text>
                                                         </TouchableOpacity>
                                                     </>
                                                 )}
                                                 <TouchableOpacity
-                                                    className="bg-red-600/20 px-3 py-2 rounded-lg"
+                                                    className="bg-[#FF6B6B]/10 px-4 py-2 rounded-xl"
                                                     onPress={() => handleDelete(task)}
                                                 >
-                                                    <Text className="text-red-400 text-sm">Delete</Text>
+                                                    <Text className="text-[#FF6B6B] text-sm font-medium">Delete</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
                                     ))
                                 )}
+                                <View className="h-10" />
                             </ScrollView>
                         </>
                     ) : (
                         /* Create Form */
-                        <ScrollView className="flex-1 px-4 pt-4">
-                            <Text className="text-gray-400 mb-1">Task Title *</Text>
+                        <ScrollView className="flex-1 px-6 pt-4" showsVerticalScrollIndicator={false}>
+                            <Text className="text-gray-500 font-medium mb-2">Task Title *</Text>
                             <TextInput
-                                className="bg-gray-800 text-white p-4 rounded-xl mb-4"
+                                className="bg-gray-50 border border-gray-200 text-[#1E1E1E] p-4 rounded-xl mb-4"
                                 placeholder="What needs to be done?"
-                                placeholderTextColor="#6b7280"
+                                placeholderTextColor="#9CA3AF"
                                 value={title}
                                 onChangeText={setTitle}
                             />
 
-                            <Text className="text-gray-400 mb-1">Delegate To *</Text>
+                            <Text className="text-gray-500 font-medium mb-2">Delegate To *</Text>
                             <TextInput
-                                className="bg-gray-800 text-white p-4 rounded-xl mb-4"
+                                className="bg-gray-50 border border-gray-200 text-[#1E1E1E] p-4 rounded-xl mb-4"
                                 placeholder="Person's name"
-                                placeholderTextColor="#6b7280"
+                                placeholderTextColor="#9CA3AF"
                                 value={delegatedTo}
                                 onChangeText={setDelegatedTo}
                             />
 
-                            <Text className="text-gray-400 mb-1">Description</Text>
+                            <Text className="text-gray-500 font-medium mb-2">Description</Text>
                             <TextInput
-                                className="bg-gray-800 text-white p-4 rounded-xl mb-4"
+                                className="bg-gray-50 border border-gray-200 text-[#1E1E1E] p-4 rounded-xl mb-4"
                                 placeholder="Optional details..."
-                                placeholderTextColor="#6b7280"
+                                placeholderTextColor="#9CA3AF"
                                 value={description}
                                 onChangeText={setDescription}
                                 multiline
                                 numberOfLines={3}
                             />
 
-                            <Text className="text-gray-400 mb-1">Category</Text>
+                            <Text className="text-gray-500 font-medium mb-2">Category</Text>
                             <TextInput
-                                className="bg-gray-800 text-white p-4 rounded-xl mb-6"
+                                className="bg-gray-50 border border-gray-200 text-[#1E1E1E] p-4 rounded-xl mb-6"
                                 placeholder="e.g., work, home, errands"
-                                placeholderTextColor="#6b7280"
+                                placeholderTextColor="#9CA3AF"
                                 value={category}
                                 onChangeText={setCategory}
                             />
 
                             <TouchableOpacity
-                                className="bg-blue-600 p-4 rounded-xl"
+                                className="bg-[#1E1E1E] py-5 rounded-full items-center mb-10"
                                 onPress={handleCreate}
                             >
                                 <Text className="text-white text-center font-bold text-lg">

@@ -1,6 +1,6 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 export const schema = appSchema({
   version: SCHEMA_VERSION,
@@ -103,6 +103,7 @@ export const schema = appSchema({
         { name: 'email', type: 'string', isOptional: true },
         { name: 'phone', type: 'string', isOptional: true },
         { name: 'socials', type: 'string', isOptional: true }, // JSON string
+        { name: 'source', type: 'string', isOptional: true }, // Where you met / got the details
         { name: 'user_id', type: 'string', isIndexed: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
