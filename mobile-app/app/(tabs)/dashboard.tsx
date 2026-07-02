@@ -8,7 +8,9 @@ import MoodLog from '../../database/models/MoodLog';
 import EventLog from '../../database/models/EventLog';
 import FinanceLog from '../../database/models/FinanceLog';
 import User from '../../database/models/User';
+import SensorStat from '../../database/models/SensorStat';
 import DatabaseBrowser from '../../components/DatabaseBrowser';
+import { taskVelocity, burnRate, productivityMoodMatrix } from '../../services/insights';
 
 interface DashboardScreenProps {
    tasks: Task[];
@@ -16,6 +18,7 @@ interface DashboardScreenProps {
    events: EventLog[];
    finances: FinanceLog[];
    users: User[];
+   sensors: SensorStat[];
 }
 
 // Helper to format minutes nicely
@@ -24,6 +27,22 @@ const formatMinutes = (minutes: number): string => {
    const hours = Math.floor(minutes / 60);
    const mins = Math.round(minutes % 60);
    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+};
+
+// Format a duration in ms as m / h / d (used by Task Velocity insight)
+const formatDuration = (ms: number): string => {
+   const mins = ms / 60000;
+   if (mins < 60) return `${Math.round(mins)}m`;
+   const hours = mins / 60;
+   if (hours < 24) return `${hours.toFixed(1)}h`;
+   return `${(hours / 24).toFixed(1)}d`;
+};
+
+// Plain-language read of the productivity↔mood correlation coefficient
+const describeCorrelation = (r: number): string => {
+   if (r >= 0.3) return 'Longer focus sessions track with a better mood.';
+   if (r <= -0.3) return 'Longer focus sessions track with a lower mood — watch for burnout.';
+   return 'No strong link between focus time and mood yet.';
 };
 
 // Get greeting based on time of day
@@ -53,7 +72,7 @@ const PRO_TIPS = [
    'Track your mood to identify productivity patterns.',
 ];
 
-function DashboardScreen({ tasks, moods, events, finances, users }: DashboardScreenProps) {
+function DashboardScreen({ tasks, moods, events, finances, users, sensors }: DashboardScreenProps) {
    const [showDBBrowser, setShowDBBrowser] = useState(false);
    const [detailModal, setDetailModal] = useState<{ type: 'active' | 'completed' | 'cancelled' | 'music' | null; visible: boolean }>({ type: null, visible: false });
    const [tipIndex, setTipIndex] = useState(0);
@@ -303,6 +322,77 @@ function DashboardScreen({ tasks, moods, events, finances, users }: DashboardScr
 
       return Math.min(Math.max(Math.round(score), 0), 100);
    }, [taskStats, timeMetrics, moodNumeric]);
+
+   // ── Deep insights (ARCHITECTURE §8.4): the four analytics, computed from observed data ──
+   const insights = useMemo(() => {
+      const DAY = 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      const weekStart = now - 7 * DAY;
+      const bucketKey = (ts: number) => {
+         const d = new Date(ts);
+         d.setHours(0, 0, 0, 0);
+         return d.getTime();
+      };
+
+      // 1. Task Velocity — creation → completion, slowest category = procrastination hotspot
+      const velocity = taskVelocity(
+         tasks.map(t => ({
+            category: t.category,
+            createdAt: t.createdAt || 0,
+            completedAt: t.completedAt ?? (t.isCompleted ? t.updatedAt : null),
+         })),
+      );
+
+      // 2. Burn Rate — 7-day spend per focus hour
+      const weekSpend = finances
+         .filter(f => f.type === 'EXPENSE' && (f.transactionDate || 0) >= weekStart)
+         .reduce((s, f) => s + (f.amount || 0), 0);
+      const burn = burnRate(weekSpend, timeMetrics.focusMinutes);
+
+      // 3. Productivity × Mood — per-day focus minutes vs avg mood over the last 7 days
+      const dayBuckets = new Map<number, { focusMs: number; moodSum: number; moodCount: number }>();
+      for (let i = 0; i < 7; i++) {
+         dayBuckets.set(bucketKey(now - i * DAY), { focusMs: 0, moodSum: 0, moodCount: 0 });
+      }
+      const focusEvents = events
+         .filter(e => e.eventType?.startsWith('FOCUS_LOCK') && (e.createdAt || 0) >= weekStart)
+         .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      let focusStart: number | null = null;
+      for (const e of focusEvents) {
+         const payload = e.payload || {};
+         const t = e.createdAt || 0;
+         if (e.eventType === 'FOCUS_LOCK_ENABLED' || payload.action === 'start') {
+            focusStart = t;
+         } else if ((e.eventType === 'FOCUS_LOCK_DISABLED' || payload.action === 'end') && focusStart) {
+            const bucket = dayBuckets.get(bucketKey(focusStart));
+            if (bucket) bucket.focusMs += t - focusStart;
+            focusStart = null;
+         }
+      }
+      const moodNum: Record<string, number> = { TERRIBLE: 1, BAD: 2, MEH: 3, GOOD: 4, GREAT: 5 };
+      for (const m of moods) {
+         const t = m.createdAt ? +m.createdAt : 0;
+         if (t < weekStart) continue;
+         const bucket = dayBuckets.get(bucketKey(t));
+         if (bucket) {
+            bucket.moodSum += moodNum[m.mood || 'GOOD'] || 3;
+            bucket.moodCount++;
+         }
+      }
+      const pm = productivityMoodMatrix(
+         [...dayBuckets.entries()].map(([date, v]) => ({
+            date,
+            productiveMinutes: v.focusMs / 60000,
+            moodAvg: v.moodCount ? v.moodSum / v.moodCount : null,
+         })),
+      );
+
+      // 4. Physical activity (fatigue input) — today's steps from the pedometer sensor
+      const todayKey = bucketKey(now);
+      const todaySensor = sensors.find(s => bucketKey(s.date || s.createdAt || 0) === todayKey);
+
+      return { velocity, burn, pm, steps: todaySensor?.steps ?? 0, hasSensor: !!todaySensor };
+   }, [tasks, finances, moods, events, sensors, timeMetrics.focusMinutes]);
 
    // Long press handlers for greeting (3 seconds to open DB browser)
    const handlePressIn = useCallback(() => {
@@ -735,6 +825,85 @@ function DashboardScreen({ tasks, moods, events, finances, users }: DashboardScr
                </View>
             </View>
 
+            {/* --- DEEP INSIGHTS (§8.4) --- */}
+            <View className="mb-6">
+               <View className="flex-row items-center gap-2 mb-4">
+                  <Brain size={18} color="#1E1E1E" />
+                  <Text className="text-lg font-bold text-[#1E1E1E]">Insights</Text>
+               </View>
+               <View className="gap-3">
+                  {/* Task Velocity */}
+                  <View className="bg-white rounded-3xl p-5 border border-gray-100">
+                     <View className="flex-row items-center gap-2 mb-1">
+                        <Timer size={16} color="#4AC3FF" />
+                        <Text className="font-bold text-[#1E1E1E]">Task Velocity</Text>
+                     </View>
+                     {insights.velocity.overallAvgMs === null ? (
+                        <Text className="text-gray-400 text-sm">Complete a few tasks to see your pace.</Text>
+                     ) : (
+                        <>
+                           <Text className="text-gray-600 text-sm">
+                              Avg completion time:{' '}
+                              <Text className="font-bold text-[#1E1E1E]">{formatDuration(insights.velocity.overallAvgMs)}</Text>
+                           </Text>
+                           {insights.velocity.slowestCategory && (
+                              <Text className="text-gray-500 text-xs mt-1">
+                                 Slowest: <Text className="text-[#FF6B6B] font-semibold">{insights.velocity.slowestCategory}</Text> — a procrastination hotspot.
+                              </Text>
+                           )}
+                        </>
+                     )}
+                  </View>
+
+                  {/* Burn Rate */}
+                  <View className="bg-white rounded-3xl p-5 border border-gray-100">
+                     <View className="flex-row items-center gap-2 mb-1">
+                        <Flame size={16} color="#FFA500" />
+                        <Text className="font-bold text-[#1E1E1E]">Burn Rate</Text>
+                     </View>
+                     {insights.burn.perHour === null ? (
+                        <Text className="text-gray-400 text-sm">Log focus time and spending this week to compute.</Text>
+                     ) : (
+                        <Text className="text-gray-600 text-sm">
+                           <Text className="font-bold text-[#1E1E1E]">{formatCurrency(Math.round(insights.burn.perHour))}</Text> per focus hour{' '}
+                           <Text className="text-gray-400">({formatCurrency(insights.burn.totalSpend)} over {insights.burn.focusHours.toFixed(1)}h)</Text>
+                        </Text>
+                     )}
+                  </View>
+
+                  {/* Productivity × Mood */}
+                  <View className="bg-white rounded-3xl p-5 border border-gray-100">
+                     <View className="flex-row items-center gap-2 mb-1">
+                        <TrendingUp size={16} color="#C0F67F" />
+                        <Text className="font-bold text-[#1E1E1E]">Productivity × Mood</Text>
+                     </View>
+                     {insights.pm.correlation === null ? (
+                        <Text className="text-gray-400 text-sm">Log your mood on a few focused days to reveal the link.</Text>
+                     ) : (
+                        <Text className="text-gray-600 text-sm">
+                           {describeCorrelation(insights.pm.correlation)}{' '}
+                           <Text className="text-gray-400">(r = {insights.pm.correlation.toFixed(2)})</Text>
+                        </Text>
+                     )}
+                  </View>
+
+                  {/* Physical activity (fatigue input) */}
+                  <View className="bg-white rounded-3xl p-5 border border-gray-100">
+                     <View className="flex-row items-center gap-2 mb-1">
+                        <Activity size={16} color="#4AC3FF" />
+                        <Text className="font-bold text-[#1E1E1E]">Physical Activity</Text>
+                     </View>
+                     {insights.hasSensor ? (
+                        <Text className="text-gray-600 text-sm">
+                           <Text className="font-bold text-[#1E1E1E]">{insights.steps.toLocaleString('en-IN')}</Text> steps today
+                        </Text>
+                     ) : (
+                        <Text className="text-gray-400 text-sm">Waiting for step data from the pedometer.</Text>
+                     )}
+                  </View>
+               </View>
+            </View>
+
             {/* Pro Tips */}
             <View className="bg-[#FFD465]/20 rounded-2xl p-4 mb-24">
                <View className="flex-row items-center mb-2">
@@ -780,6 +949,7 @@ const enhance = withObservables([], () => ({
    events: database.get<EventLog>('event_logs').query().observe(),
    finances: database.get<FinanceLog>('finance_logs').query().observe(),
    users: database.get<User>('users').query().observe(),
+   sensors: database.get<SensorStat>('sensor_stats').query().observe(),
 }));
 
 const EnhancedDashboardScreen = enhance(DashboardScreen);
