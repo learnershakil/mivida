@@ -86,3 +86,29 @@ restyles, are follow-ons best iterated with live visual feedback (adb can't inje
 Native lockdown hardening (overlay/foreground-service/boot/exact-alarm Kotlin); sensors + usage-stats data
 sources, Insights settings UI, and dashboard wiring; R2 upload flow; Google Calendar OAuth; backend cron
 (server time-authority); media-at-rest + DB-at-rest encryption; full web CRUD parity + web vault reset.
+
+## On-device completion — Insights, settings & scheduled focus (2026-07-02)
+
+Closing out the buildable follow-ons (the three friction points — changing host LAN IP, MIUI blocking
+touch injection, and the one-time Google browser consent — are environmental and deferred by the user).
+
+- **Scheduled focus auto-start (§5.3)** — native `FocusScheduleModule` (Kotlin) arms an exact
+  `setExactAndAllowWhileIdle` alarm; `FocusAlarmReceiver` starts `LockdownOverlayService` at the scheduled
+  time even if the app is closed, and re-arms a pending schedule on `BOOT_COMPLETED`. `FocusLockModal` calls
+  it on the "schedule for later" path (falls back to a plain reminder when the native module is absent).
+- **Dashboard insights (#8, §8.4)** — mobile dashboard now renders the four analytics from
+  `services/insights.ts`: Task Velocity (slowest category = procrastination hotspot), Burn Rate (spend per
+  focus hour), Productivity × Mood correlation, and today's step count. Each card degrades gracefully when
+  its data source is empty. Computed from the already-observed tasks/finances/moods/events + a new
+  `sensor_stats` observable.
+- **Insights settings group (#9)** — SettingsModal gains an Insights section for the fatigue screen-time
+  (hours) and daily-steps thresholds, persisted to the device settings columns. Matching flat nullable
+  columns added to the Prisma `Setting` model (additive migration `20260702010000_fatigue_thresholds`) so the
+  DMMF sync mapper carries them server-side; the fatigue cron prefers them (→ insights JSON → defaults).
+- **§7 cosmetics resolved** — the not-awake, break-cancel, and music "add song" alerts are `Alert.alert`
+  calls already rendered by the global dark `CustomAlertProvider` override, so they are on-brand without
+  change; the finance date picker was recolored earlier. No further restyle needed.
+
+### Verification
+- Mobile: `tsc --noEmit` **0 errors**; `jest` **43/43**.
+- Web: `tsc --noEmit` **0 errors**; `vitest` **22/22**; `prisma migrate deploy` applied cleanly.
