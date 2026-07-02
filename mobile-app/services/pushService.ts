@@ -1,5 +1,21 @@
 import * as Notifications from 'expo-notifications';
 import { API_BASE, getHttpKey } from './apiConfig';
+import { appEvents, AppEvents } from './appEvents';
+
+/**
+ * Route taps on server-sent FCM notifications (which bypass Notifee) into the app.
+ * Currently: action=mood_check → open the mood modal. Returns an unsubscribe fn.
+ */
+export function listenForPushTaps(): () => void {
+  const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const data = response.notification.request.content.data as { action?: string } | null;
+    if (data?.action === 'mood_check') {
+      console.log('[push] mood_check tapped → opening mood modal');
+      appEvents.emit(AppEvents.SHOW_MOOD_MODAL);
+    }
+  });
+  return () => sub.remove();
+}
 
 /**
  * Register this device's FCM token with the backend so the server (cron) can send mood-check pushes.

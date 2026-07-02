@@ -23,7 +23,7 @@ import { alertService } from '../services/alertService'
 import { soundService } from '../services/soundService'
 import { runTaskMaintenance } from '../services/taskMaintenance'
 import { backupEventLog } from '../services/dbBackup'
-import { registerPushToken } from '../services/pushService'
+import { registerPushToken, listenForPushTaps } from '../services/pushService'
 import { initSensors } from '../services/sensorService'
 import { appEvents, AppEvents } from '../services/appEvents'
 import '../global.css'
@@ -128,6 +128,9 @@ export default function Layout() {
 
     initialize();
 
+    // Route taps on server-sent FCM pushes (mood pings) into the app
+    const unsubscribePushTaps = listenForPushTaps();
+
     // Setup foreground event listener for alert notifications
     const unsubscribe = notifee.onForegroundEvent(async ({ type, detail }) => {
       const { notification } = detail;
@@ -160,6 +163,7 @@ export default function Layout() {
     return () => {
       deadManService.stop();
       unsubscribe();
+      unsubscribePushTaps();
     };
   }, []);
 
