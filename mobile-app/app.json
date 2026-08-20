@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Productivity Logger",
-    "slug": "ProductivityLogger",
-    "scheme": "productivitylogger",
+    "name": "Mi Vida",
+    "slug": "mi-vida",
+    "scheme": "mivida",
     "version": "1.0.0",
     "plugins": [
       "./plugins/withWatermelonDB",

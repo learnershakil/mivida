@@ -27,7 +27,7 @@ export default async function Home() {
       <div className="max-w-5xl mx-auto"><Nav /></div>
       <header className="mb-12 border-b border-white/10 pb-6 max-w-5xl mx-auto">
         <h1 className="text-4xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-          mi vida
+          Mi Vida
         </h1>
         <p className="text-zinc-400 mt-2 text-lg">Central Control Panel</p>
       </header>

@@ -1,6 +1,6 @@
 <div align="center">
 
-# mi vida
+# Mi Vida
 
 **A single‑user, offline‑first life‑management system — one backend, two clients.**
 
@@ -14,7 +14,7 @@ Tasks · Focus lockdown · Encrypted vault · Finance · Mood · Music · Contac
 
 ## Table of contents
 
-1. [What is mi vida?](#1-what-is-mi-vida)
+1. [What is Mi Vida?](#1-what-is-mi-vida)
 2. [Core principles](#2-core-principles)
 3. [Feature tour](#3-feature-tour)
 4. [System architecture](#4-system-architecture)
@@ -38,9 +38,9 @@ Tasks · Focus lockdown · Encrypted vault · Finance · Mood · Music · Contac
 
 ---
 
-## 1. What is mi vida?
+## 1. What is Mi Vida?
 
-**mi vida** ("my life") is a personal productivity and life‑management application built for a **single user**. It is deliberately **offline‑first**: the phone is fully functional with no network, and the cloud is purely additive (backup, cross‑surface visibility, and a time‑authoritative backend).
+**Mi Vida** ("my life") is a personal productivity and life‑management application built for a **single user**. It is deliberately **offline‑first**: the phone is fully functional with no network, and the cloud is purely additive (backup, cross‑surface visibility, and a time‑authoritative backend).
 
 It ships as **two clients over one backend**:
 
@@ -162,7 +162,7 @@ mivida/
 │   ├── database/            # WatermelonDB schema.ts, migrations.ts, models/
 │   ├── store/               # Zustand stores
 │   ├── android/             # Native project incl. Kotlin modules
-│   │   └── app/src/main/java/com/productivitylogger/app/
+│   │   └── app/src/main/java/com/mivida/app/
 │   │       ├── DeviceAdminModule.kt        # LockTask / screen pinning
 │   │       ├── LockdownOverlayService.kt   # Foreground service + overlay window
 │   │       ├── FocusScheduleModule.kt      # Exact-alarm scheduled focus
@@ -537,5 +537,5 @@ Deferred (need external consent, larger UI, or platform features): full web CRUD
 ---
 
 <div align="center">
-<sub>mi vida · single‑user, offline‑first · built with React Native, Next.js, Prisma & WatermelonDB.</sub>
+<sub>Mi Vida · single‑user, offline‑first · built with React Native, Next.js, Prisma & WatermelonDB.</sub>
 </div>

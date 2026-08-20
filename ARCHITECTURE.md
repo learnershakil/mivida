@@ -1,4 +1,4 @@
-# mi vida — Phase 2 Architecture
+# Mi Vida — Phase 2 Architecture
 
 > Design contract for Phase 3 implementation. Reconciled against the **actual** WatermelonDB schema
 > (`mobile-app/database/schema.ts`, v13) and the existing sync route — not the brief's proposal. Read

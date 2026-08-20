@@ -6,7 +6,7 @@ import { sendToUser } from '@/lib/fcm'
 export async function POST(req: NextRequest) {
   try {
     const user = await requireWebUser(req)
-    const count = await sendToUser(user.id, '🎭 mi vida', 'Test push — how are you feeling?', { action: 'mood_check' })
+    const count = await sendToUser(user.id, '🎭 Mi Vida', 'Test push — how are you feeling?', { action: 'mood_check' })
     return NextResponse.json({ ok: true, delivered: count })
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status })

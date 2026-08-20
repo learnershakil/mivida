@@ -1,4 +1,4 @@
-// mi vida — Prisma schema (Phase 3). See ARCHITECTURE.md §2 for the design + the 1:1 WatermelonDB mapping.
+// Mi Vida — Prisma schema (Phase 3). See ARCHITECTURE.md §2 for the design + the 1:1 WatermelonDB mapping.
 //
 // Prisma 7: the connection `url` is NOT declared here — it lives in prisma.config.ts (loaded via
 // `import "dotenv/config"`), and the client is constructed with @prisma/adapter-pg in src/lib/prisma.ts.

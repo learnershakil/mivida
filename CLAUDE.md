@@ -1,11 +1,11 @@
-# CLAUDE.md — mi vida
+# CLAUDE.md — Mi Vida
 
 Guidance for any future session working in this repo. Read `AUDIT.md` (repo root) for the full,
 evidence-backed state of the codebase; read the plan/architecture docs before implementing.
 
 ## What this is
 
-`mi vida` — a **single-user, offline-first** life-management app with two clients over one backend:
+`Mi Vida` — a **single-user, offline-first** life-management app with two clients over one backend:
 
 - **`mobile-app/`** — React Native, **Expo SDK 54 (bare)**, expo-router. Local-first via **WatermelonDB**.
   **No login** on mobile.

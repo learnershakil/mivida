@@ -262,7 +262,7 @@ export function formatFileSize(bytes: number): string {
  */
 export function generateExportFilename(): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `productivitylogger-export-${timestamp}.jsonl`;
+  return `mivida-export-${timestamp}.jsonl`;
 }
 
 /**
@@ -309,7 +309,7 @@ export async function shareExport(content: string, filename: string): Promise<vo
 }
 
 /**
- * Save export content to device storage (Productivity Logger/Logs folder)
+ * Save export content to device storage (Mi Vida/Logs folder)
  * Uses MediaLibrary for Android and FileSystem for iOS
  */
 export async function saveExportToDevice(content: string, filename: string): Promise<boolean> {
@@ -352,7 +352,7 @@ export async function saveExportToDevice(content: string, filename: string): Pro
       console.log(`[ExportService] File saved to: ${fileUri}`);
       RNAlert.alert(
         'Success',
-        `Export saved! Please select or create a "Productivity Logger/Logs" folder.`
+        `Export saved! Please select or create a "Mi Vida/Logs" folder.`
       );
       return true;
     } else {
@@ -371,7 +371,7 @@ export async function saveExportToDevice(content: string, filename: string): Pro
       });
 
       console.log(`[ExportService] File saved to: ${fileUri}`);
-      RNAlert.alert('Success', `Export saved to Files app > Productivity Logger > Logs`);
+      RNAlert.alert('Success', `Export saved to Files app > Mi Vida > Logs`);
       return true;
     }
   } catch (error) {

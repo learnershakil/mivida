@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "mi vida — Control Panel",
-  description: "Dashboard and backend for the mi vida life-management app.",
+  title: "Mi Vida — Control Panel",
+  description: "Dashboard and backend for the Mi Vida life-management app.",
 };
 
 export default function RootLayout({

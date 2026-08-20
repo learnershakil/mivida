@@ -42,7 +42,7 @@ export default function LoginPage() {
       >
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-            mi vida
+            Mi Vida
           </h1>
           <p className="text-zinc-500 text-sm mt-1">Control panel sign-in</p>
         </div>

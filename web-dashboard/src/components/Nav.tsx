@@ -25,7 +25,7 @@ export function Nav() {
   return (
     <nav className="flex items-center gap-1 flex-wrap mb-10 border-b border-white/10 pb-4">
       <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mr-4">
-        mi vida
+        Mi Vida
       </span>
       {LINKS.map((l) => {
         const active = pathname === l.href
